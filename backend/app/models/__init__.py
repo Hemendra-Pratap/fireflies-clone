@@ -9,6 +9,7 @@ from app.models.meeting import Meeting
 from app.models.participant import Participant
 from app.models.summary import Summary
 from app.models.transcript_segment import TranscriptSegment
+from app.models.user import User
 
 
 def import_models() -> None:
@@ -27,5 +28,6 @@ __all__ = [
     "Participant",
     "Summary",
     "TranscriptSegment",
+    "User",
     "import_models",
 ]

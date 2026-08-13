@@ -262,3 +262,58 @@ def test_meeting_deletion_cascades(db_session):
     )
     assert db_session.query(Summary).filter(Summary.id == summary_id).count() == 0
     assert db_session.query(Chapter).filter(Chapter.id == chapter_id).count() == 0
+
+
+def test_user_persistence(db_session):
+    """Verify User record creation, email persistence, and timestamp population."""
+    from app.models.user import User
+
+    user = User(
+        email="dev@example.com",
+        password_hash="$2b$12$eImiTXuWVxfM37uY4JANjOQeWJb65S13g/X1.6/3X/8.",
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+
+    assert user.id is not None
+    assert user.email == "dev@example.com"
+    assert user.password_hash.startswith("$2b$12$")
+    assert user.created_at is not None
+    assert user.updated_at is not None
+
+
+def test_user_email_uniqueness(db_session):
+    """Verify email uniqueness constraint is enforced."""
+    import pytest
+    from sqlalchemy.exc import IntegrityError
+    from app.models.user import User
+
+    user1 = User(
+        email="duplicate@example.com",
+        password_hash="hash1",
+    )
+    db_session.add(user1)
+    db_session.commit()
+
+    user2 = User(
+        email="duplicate@example.com",
+        password_hash="hash2",
+    )
+    db_session.add(user2)
+    with pytest.raises(IntegrityError):
+        db_session.commit()
+    db_session.rollback()
+
+
+def test_user_required_fields(db_session):
+    """Verify missing required fields (email, password_hash) fail database constraints."""
+    import pytest
+    from sqlalchemy.exc import IntegrityError
+    from app.models.user import User
+
+    user_no_hash = User(email="nohash@example.com")
+    db_session.add(user_no_hash)
+    with pytest.raises(IntegrityError):
+        db_session.commit()
+    db_session.rollback()
