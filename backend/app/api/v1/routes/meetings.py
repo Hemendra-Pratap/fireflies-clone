@@ -1,9 +1,11 @@
+import asyncio
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy.orm import Session
 
-from app.db.session import get_db
+from app.db.session import SessionLocal, get_db
+from app.models.meeting import MeetingStatus
 from app.schemas.meeting import (
     MeetingCreate,
     MeetingListResponse,
@@ -17,8 +19,20 @@ from app.services.storage_service import (
     ALLOWED_MIME_TYPES,
     storage_service,
 )
+from app.services.transcription_service import transcription_service
 
 router = APIRouter()
+
+
+def _run_transcription_in_background(meeting_id: int) -> None:
+    """Worker function for running async transcription in background thread."""
+    db = SessionLocal()
+    try:
+        asyncio.run(transcription_service.transcribe_meeting(db, meeting_id))
+    except Exception:
+        pass
+    finally:
+        db.close()
 
 
 @router.post(
@@ -189,6 +203,42 @@ async def upload_meeting_audio(
             detail="Failed to update database with audio metadata",
         )
 
+    return MeetingRead.model_validate(updated_meeting)
+
+
+@router.post(
+    "/{meeting_id}/transcribe",
+    response_model=MeetingRead,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Trigger or retry meeting transcription",
+)
+def trigger_transcription(
+    meeting_id: int,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+) -> MeetingRead:
+    """Trigger or retry audio transcription for a meeting in the background."""
+    meeting = meeting_service.get_by_id(db, meeting_id)
+    if not meeting:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Meeting not found",
+        )
+
+    if not meeting.audio_file_path:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Meeting has no uploaded audio file",
+        )
+
+    if meeting.status == MeetingStatus.TRANSCRIBING:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Transcription is already in progress",
+        )
+
+    updated_meeting = meeting_service.update_status(db, meeting, MeetingStatus.TRANSCRIBING)
+    background_tasks.add_task(_run_transcription_in_background, meeting_id)
     return MeetingRead.model_validate(updated_meeting)
 
 
