@@ -99,6 +99,29 @@ def list_meetings(
 
 
 @router.get(
+    "/search",
+    response_model=MeetingListResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Search meetings across title and transcript text",
+)
+def search_meetings(
+    q: str = Query("", description="Search term across title and transcript text"),
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    size: int = Query(20, ge=1, le=100, description="Items per page"),
+    status: str | None = Query(None, description="Filter by status (e.g. completed)"),
+    db: Session = Depends(get_db),
+) -> MeetingListResponse:
+    """Search meetings across title and transcript text with pagination."""
+    items, total = meeting_service.search_full_text(
+        db, query_str=q, page=page, size=size, status=status
+    )
+    items_read = [MeetingRead.model_validate(item) for item in items]
+    return MeetingListResponse.create(
+        items=items_read, total=total, page=page, size=size
+    )
+
+
+@router.get(
     "/{meeting_id}",
     response_model=MeetingRead,
     status_code=status.HTTP_200_OK,

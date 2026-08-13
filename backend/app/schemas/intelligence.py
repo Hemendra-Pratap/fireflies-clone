@@ -56,6 +56,13 @@ class ActionItemRead(ORMModel):
     due_at: datetime | None = None
 
 
+class ActionItemUpdate(ORMModel):
+    is_completed: bool | None = None
+    description: str | None = None
+    due_at: datetime | None = None
+    participant_id: int | None = None
+
+
 class ChapterRead(ORMModel):
     id: int
     meeting_id: int

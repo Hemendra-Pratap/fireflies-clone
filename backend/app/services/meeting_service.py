@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -42,6 +44,45 @@ class MeetingService:
         total = query.count()
         items = (
             query.order_by(Meeting.created_at.desc())
+            .offset(skip)
+            .limit(size)
+            .all()
+        )
+
+        return items, total
+
+    def search_full_text(
+        self,
+        db: Session,
+        *,
+        query_str: str,
+        page: int = 1,
+        size: int = 20,
+        status: str | None = None,
+    ) -> tuple[list[Meeting], int]:
+        """Search meetings across title and transcript text with pagination."""
+        from app.models.transcript_segment import TranscriptSegment
+
+        skip = (page - 1) * size
+        pattern = f"%{query_str}%"
+
+        # Outer join to TranscriptSegment to match title OR segment text
+        base_query = db.query(Meeting).outerjoin(TranscriptSegment)
+
+        if status:
+            base_query = base_query.filter(Meeting.status == status)
+
+        if query_str and query_str.strip():
+            base_query = base_query.filter(
+                (Meeting.title.ilike(pattern)) | (TranscriptSegment.text.ilike(pattern))
+            )
+
+        # Distinct meeting IDs to avoid duplicates from multiple segment matches
+        distinct_query = base_query.distinct()
+        total = distinct_query.count()
+
+        items = (
+            distinct_query.order_by(Meeting.created_at.desc())
             .offset(skip)
             .limit(size)
             .all()

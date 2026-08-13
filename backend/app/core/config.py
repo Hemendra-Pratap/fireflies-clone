@@ -19,5 +19,10 @@ class Settings:
     gemini_api_key: str | None = os.getenv("GEMINI_API_KEY")
     gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
 
+    @property
+    def cors_origins(self) -> list[str]:
+        origins_str = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173")
+        return [origin.strip() for origin in origins_str.split(",") if origin.strip()]
+
 
 settings = Settings()
