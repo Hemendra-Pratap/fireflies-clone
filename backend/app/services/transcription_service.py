@@ -127,6 +127,9 @@ class TranscriptionService:
 
         db.commit()
         db.refresh(meeting)
+
+        logger.info(f"[TRANSCRIPTION] database persistence completed: {len(sorted_segments)} segments saved for meeting {meeting_id}")
+        logger.info(f"[TRANSCRIPTION] processing completed: meeting {meeting_id} status set to TRANSCRIBED")
         return meeting
 
 

@@ -1,10 +1,13 @@
 from abc import ABC, abstractmethod
 import os
+import logging
 from pathlib import Path
-
 from pydantic import BaseModel, Field
 
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
+
 
 
 class TranscriptionSegmentData(BaseModel):
@@ -94,14 +97,59 @@ class GeminiTranscriptionProvider(TranscriptionProvider):
         if not audio_file_path.exists():
             raise FileNotFoundError(f"Audio file not found: {audio_file_path}")
 
-        if audio_file_path.stat().st_size == 0:
+        size_bytes = audio_file_path.stat().st_size
+        if size_bytes == 0:
             raise ValueError(f"Audio file is empty (0 bytes): {audio_file_path}")
+
+        # Extract audio metadata for logging
+        ext = audio_file_path.suffix.lower()
+        mime_type = {
+            ".mp3": "audio/mp3",
+            ".wav": "audio/wav",
+            ".m4a": "audio/m4a",
+            ".ogg": "audio/ogg",
+            ".webm": "audio/webm",
+            ".mp4": "audio/mp4",
+            ".aac": "audio/aac",
+            ".flac": "audio/flac",
+        }.get(ext, "audio/mpeg")
+
+        duration_sec = "unknown"
+        channels = "unknown"
+        sample_rate = "unknown"
+
+        if ext == ".wav":
+            try:
+                import wave
+                with wave.open(str(audio_file_path), "rb") as wf:
+                    ch = wf.getnchannels()
+                    sr = wf.getframerate()
+                    frames = wf.getnframes()
+                    dur = frames / float(sr) if sr > 0 else 0
+                    channels = str(ch)
+                    sample_rate = str(sr)
+                    duration_sec = f"{dur:.2f}"
+            except Exception:
+                pass
+
+        logger.info(f"[TRANSCRIPTION] file: {audio_file_path.name}")
+        logger.info(f"[TRANSCRIPTION] provider: GeminiTranscriptionProvider")
+        logger.info(f"[TRANSCRIPTION] model: {self.model_name}")
+        logger.info(
+            f"[TRANSCRIPTION] audio metadata: duration={duration_sec}s, channels={channels}, "
+            f"sample_rate={sample_rate}Hz, format={ext.lstrip('.')}, size={size_bytes}bytes"
+        )
+        logger.info(f"[TRANSCRIPTION] request started: {audio_file_path.name}")
 
         import time
         from google import genai
         client = genai.Client(api_key=self.api_key)
 
-        uploaded_audio = client.files.upload(file=str(audio_file_path))
+        # Pass explicit mime_type to prevent fallback to generic octet-stream
+        uploaded_audio = client.files.upload(
+            file=str(audio_file_path),
+            config={"mime_type": mime_type},
+        )
 
         # Poll file processing status until ACTIVE or FAILED
         while hasattr(uploaded_audio, "state") and uploaded_audio.state and getattr(uploaded_audio.state, "name", "") == "PROCESSING":
@@ -112,14 +160,16 @@ class GeminiTranscriptionProvider(TranscriptionProvider):
             raise RuntimeError(f"Audio file processing failed on Gemini API: {getattr(uploaded_audio, 'error', 'Unknown error')}")
 
         prompt = (
-            "You are an expert speech-to-text audio transcription engine. "
-            "Listen carefully to the audio recording and transcribe all spoken content into chronological segments.\n\n"
-            "Instructions:\n"
-            "1. Divide the spoken content into sequential segments starting at sequence_number=1.\n"
-            "2. Extract start_time_ms and end_time_ms timestamps for each segment in milliseconds.\n"
-            "3. Identify distinct speaker labels (e.g. 'Speaker 1', 'Speaker 2') where multiple speakers are present. If speaker identity is unknown, set speaker_label to null.\n"
-            "4. Do NOT fabricate speaker names or fake timestamps. If timestamps are unknown, set start_time_ms and end_time_ms to 0.\n"
-            "5. Return JSON adhering to the TranscriptionResult schema."
+            "You are a professional, high-accuracy verbatim speech-to-text transcription engine.\n"
+            "Your objective is to produce an EXACT, 100% VERBATIM word-for-word transcript of the provided audio recording.\n\n"
+            "CRITICAL INSTRUCTIONS:\n"
+            "1. VERBATIM ACCURACY: Transcribe every single spoken word exactly as uttered in the audio. Do NOT paraphrase, summarize, omit words, fix grammar, or clean up filler words.\n"
+            "2. CHRONOLOGICAL SEGMENTS: Divide the audio into chronological, sequential transcript segments starting at sequence_number=1.\n"
+            "3. TIMESTAMPS: Calculate precise start_time_ms and end_time_ms for every segment in milliseconds relative to the start of the audio file (0ms).\n"
+            "4. SPEAKER DIARIZATION: Identify distinct speakers as 'Speaker 1', 'Speaker 2', etc. Whenever the speaker changes, start a new segment with the appropriate speaker_label.\n"
+            "5. NO HALLUCINATION: Transcribe ONLY content actually spoken in the audio file. Never fabricate, invent, or reconstruct dialogue not present in the recording.\n"
+            "6. COMPLETENESS: Transcribe the complete audio recording from start to finish without omitting any spoken sentence.\n"
+            "7. OUTPUT FORMAT: Return JSON adhering strictly to the TranscriptionResult schema."
         )
 
         try:
@@ -140,6 +190,9 @@ class GeminiTranscriptionProvider(TranscriptionProvider):
         if not response.text:
             raise RuntimeError("Empty response received from Gemini Speech-to-Text API.")
 
+        logger.info(f"[TRANSCRIPTION] request completed: {audio_file_path.name}")
+        logger.info(f"[TRANSCRIPTION] raw response received: length={len(response.text)} chars")
+
         result = TranscriptionResult.model_validate_json(response.text)
 
         if result.segments:
@@ -149,6 +202,9 @@ class GeminiTranscriptionProvider(TranscriptionProvider):
             result.segments = sorted_segs
             if not result.duration_ms and sorted_segs:
                 result.duration_ms = sorted_segs[-1].end_time_ms
+
+        logger.info(f"[TRANSCRIPTION] segment count: {len(result.segments)}")
+        logger.info(f"[TRANSCRIPTION] transcript character count: {sum(len(s.text) for s in result.segments)}")
 
         return result
 

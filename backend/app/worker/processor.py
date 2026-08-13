@@ -36,7 +36,20 @@ def is_transient_error(exc: Exception) -> bool:
     exc_str = str(exc).lower()
     if "lock" in exc_str or "deadlock" in exc_str or "timeout" in exc_str or "connection" in exc_str:
         return True
-    return False
+def _run_async_coro(coro):
+    """Safely execute an async coroutine synchronously whether inside or outside an active event loop."""
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+
+    if loop and loop.is_running():
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(asyncio.run, coro)
+            return future.result()
+    else:
+        return asyncio.run(coro)
 
 
 class JobProcessor:
@@ -140,7 +153,7 @@ class JobProcessor:
 
         try:
             if job.job_type == JobType.TRANSCRIPTION:
-                asyncio.run(transcription_service.transcribe_meeting(db, job.meeting_id))
+                _run_async_coro(transcription_service.transcribe_meeting(db, job.meeting_id))
                 job.status = JobStatus.COMPLETED
                 job.completed_at = datetime.now(timezone.utc)
                 job.error_message = None
@@ -151,7 +164,7 @@ class JobProcessor:
                 return self.run_job(db, ai_job.id, worker_id=worker_id)
 
             elif job.job_type == JobType.AI_ANALYSIS:
-                asyncio.run(meeting_intelligence_service.analyze_meeting(db, job.meeting_id))
+                _run_async_coro(meeting_intelligence_service.analyze_meeting(db, job.meeting_id))
                 job.status = JobStatus.COMPLETED
                 job.completed_at = datetime.now(timezone.utc)
                 job.error_message = None
