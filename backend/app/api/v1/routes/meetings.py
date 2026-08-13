@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pathlib import Path
+
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
@@ -6,9 +8,15 @@ from app.schemas.meeting import (
     MeetingCreate,
     MeetingListResponse,
     MeetingRead,
+    MeetingStatusRead,
     MeetingUpdate,
 )
 from app.services.meeting_service import meeting_service
+from app.services.storage_service import (
+    ALLOWED_EXTENSIONS,
+    ALLOWED_MIME_TYPES,
+    storage_service,
+)
 
 router = APIRouter()
 
@@ -93,6 +101,97 @@ def update_meeting(
     return MeetingRead.model_validate(updated_meeting)
 
 
+@router.get(
+    "/{meeting_id}/status",
+    response_model=MeetingStatusRead,
+    status_code=status.HTTP_200_OK,
+    summary="Get meeting processing status",
+)
+def get_meeting_status(
+    meeting_id: int,
+    db: Session = Depends(get_db),
+) -> MeetingStatusRead:
+    """Retrieve current processing status and optional error message of a meeting."""
+    meeting = meeting_service.get_by_id(db, meeting_id)
+    if not meeting:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Meeting not found",
+        )
+    return MeetingStatusRead.model_validate(meeting)
+
+
+@router.post(
+    "/{meeting_id}/audio",
+    response_model=MeetingRead,
+    status_code=status.HTTP_200_OK,
+    summary="Upload meeting audio file",
+)
+async def upload_meeting_audio(
+    meeting_id: int,
+    file: UploadFile = File(..., description="Audio recording file"),
+    db: Session = Depends(get_db),
+) -> MeetingRead:
+    """Upload an audio file for a meeting, persist to storage, and update processing status."""
+    meeting = meeting_service.get_by_id(db, meeting_id)
+    if not meeting:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Meeting not found",
+        )
+
+    # Validate file presence
+    if not file.filename:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No filename provided in upload",
+        )
+
+    # Validate MIME type and extension
+    content_type = file.content_type.lower() if file.content_type else ""
+    safe_name = Path(file.filename).name
+    ext = Path(safe_name).suffix.lower()
+
+    if content_type not in ALLOWED_MIME_TYPES and ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported file type '{content_type or ext}'. Allowed types: MP3, WAV, M4A, OGG, WEBM, MP4, AAC, FLAC.",
+        )
+
+    # Persist file using storage service
+    try:
+        relative_path, safe_filename, size_bytes = await storage_service.save_file(file)
+    except ValueError as val_err:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(val_err),
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to persist audio file: {exc}",
+        )
+
+    # Persist metadata to DB; if DB update fails, clean up stored file
+    try:
+        updated_meeting = meeting_service.attach_audio(
+            db,
+            meeting,
+            audio_file_path=relative_path,
+            audio_filename=safe_filename,
+            audio_mime_type=content_type or "audio/mpeg",
+            audio_size_bytes=size_bytes,
+        )
+    except Exception:
+        storage_service.delete_file(relative_path)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update database with audio metadata",
+        )
+
+    return MeetingRead.model_validate(updated_meeting)
+
+
 @router.delete(
     "/{meeting_id}",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -109,4 +208,7 @@ def delete_meeting(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Meeting not found",
         )
+    # If meeting has an attached audio file, delete it from storage
+    if meeting.audio_file_path:
+        storage_service.delete_file(meeting.audio_file_path)
     meeting_service.delete(db, meeting)

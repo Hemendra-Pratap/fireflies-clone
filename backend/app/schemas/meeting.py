@@ -37,6 +37,18 @@ class MeetingRead(TimestampedModel):
     recorded_at: datetime
     duration_ms: int | None = None
     status: str
+    audio_file_path: str | None = None
+    audio_filename: str | None = None
+    audio_mime_type: str | None = None
+    audio_size_bytes: int | None = None
+    error_message: str | None = None
+
+
+class MeetingStatusRead(ORMModel):
+    id: int
+    status: str
+    error_message: str | None = None
+    updated_at: datetime
 
 
 class MeetingDetailRead(MeetingRead):

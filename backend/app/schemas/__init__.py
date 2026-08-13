@@ -6,6 +6,7 @@ from app.schemas.meeting import (
     MeetingDetailRead,
     MeetingListResponse,
     MeetingRead,
+    MeetingStatusRead,
     MeetingUpdate,
 )
 
@@ -15,6 +16,7 @@ __all__ = [
     "MeetingDetailRead",
     "MeetingListResponse",
     "MeetingRead",
+    "MeetingStatusRead",
     "MeetingUpdate",
 ]
 

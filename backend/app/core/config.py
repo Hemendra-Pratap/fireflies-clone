@@ -15,6 +15,7 @@ class Settings:
     app_version: str = os.getenv("APP_VERSION", "0.1.0")
     api_prefix: str = os.getenv("API_PREFIX", "/api")
     database_url: str = os.getenv("DATABASE_URL", DEFAULT_DATABASE_URL)
+    backend_dir: Path = BACKEND_DIR
 
 
 settings = Settings()

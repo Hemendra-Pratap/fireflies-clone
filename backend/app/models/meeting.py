@@ -1,10 +1,20 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, Index, Integer, String
+from sqlalchemy import BigInteger, DateTime, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 from app.models.mixins import IntegerPrimaryKeyMixin, TimestampMixin
+
+
+class MeetingStatus:
+    CREATED = "created"
+    UPLOADED = "uploaded"
+    TRANSCRIBING = "transcribing"
+    TRANSCRIBED = "transcribed"
+    ANALYZING = "analyzing"
+    COMPLETED = "completed"
+    FAILED = "failed"
 
 
 class Meeting(IntegerPrimaryKeyMixin, TimestampMixin, Base):
@@ -26,6 +36,11 @@ class Meeting(IntegerPrimaryKeyMixin, TimestampMixin, Base):
         server_default="completed",
         index=True,
     )
+    audio_file_path: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    audio_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    audio_mime_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    audio_size_bytes: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     participants = relationship(
         "Participant",

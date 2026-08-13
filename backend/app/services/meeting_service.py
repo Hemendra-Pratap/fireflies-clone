@@ -1,7 +1,7 @@
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.models.meeting import Meeting
+from app.models.meeting import Meeting, MeetingStatus
 from app.schemas.meeting import MeetingCreate, MeetingUpdate
 
 
@@ -56,6 +56,45 @@ class MeetingService:
         update_data = obj_in.model_dump(exclude_unset=True)
         for field, value in update_data.items():
             setattr(db_obj, field, value)
+
+        db.add(db_obj)
+        db.commit()
+        db.refresh(db_obj)
+        return db_obj
+
+    def attach_audio(
+        self,
+        db: Session,
+        db_obj: Meeting,
+        *,
+        audio_file_path: str,
+        audio_filename: str,
+        audio_mime_type: str,
+        audio_size_bytes: int,
+    ) -> Meeting:
+        """Attach uploaded audio file metadata and update status to UPLOADED."""
+        db_obj.audio_file_path = audio_file_path
+        db_obj.audio_filename = audio_filename
+        db_obj.audio_mime_type = audio_mime_type
+        db_obj.audio_size_bytes = audio_size_bytes
+        db_obj.status = MeetingStatus.UPLOADED
+        db_obj.error_message = None
+
+        db.add(db_obj)
+        db.commit()
+        db.refresh(db_obj)
+        return db_obj
+
+    def update_status(
+        self,
+        db: Session,
+        db_obj: Meeting,
+        status: str,
+        error_message: str | None = None,
+    ) -> Meeting:
+        """Update meeting processing status and optional error message."""
+        db_obj.status = status
+        db_obj.error_message = error_message
 
         db.add(db_obj)
         db.commit()
