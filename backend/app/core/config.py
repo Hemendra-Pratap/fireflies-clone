@@ -16,6 +16,8 @@ class Settings:
     api_prefix: str = os.getenv("API_PREFIX", "/api")
     database_url: str = os.getenv("DATABASE_URL", DEFAULT_DATABASE_URL)
     backend_dir: Path = BACKEND_DIR
+    gemini_api_key: str | None = os.getenv("GEMINI_API_KEY")
+    gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
 
 
 settings = Settings()

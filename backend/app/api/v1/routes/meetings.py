@@ -5,7 +5,20 @@ from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Qu
 from sqlalchemy.orm import Session
 
 from app.db.session import SessionLocal, get_db
+from app.models.action_item import ActionItem
+from app.models.chapter import Chapter
 from app.models.meeting import MeetingStatus
+from app.models.participant import Participant
+from app.models.summary import Summary
+from app.models.transcript_segment import TranscriptSegment
+from app.schemas.intelligence import (
+    ActionItemRead,
+    ChapterRead,
+    MeetingIntelligenceRead,
+    ParticipantRead,
+    SummaryRead,
+    TranscriptSegmentRead,
+)
 from app.schemas.meeting import (
     MeetingCreate,
     MeetingListResponse,
@@ -13,6 +26,7 @@ from app.schemas.meeting import (
     MeetingStatusRead,
     MeetingUpdate,
 )
+from app.services.ai.meeting_intelligence import meeting_intelligence_service
 from app.services.meeting_service import meeting_service
 from app.services.storage_service import (
     ALLOWED_EXTENSIONS,
@@ -29,6 +43,17 @@ def _run_transcription_in_background(meeting_id: int) -> None:
     db = SessionLocal()
     try:
         asyncio.run(transcription_service.transcribe_meeting(db, meeting_id))
+    except Exception:
+        pass
+    finally:
+        db.close()
+
+
+def _run_ai_analysis_in_background(meeting_id: int) -> None:
+    """Worker function for running async AI Meeting Intelligence in background thread."""
+    db = SessionLocal()
+    try:
+        asyncio.run(meeting_intelligence_service.analyze_meeting(db, meeting_id))
     except Exception:
         pass
     finally:
@@ -240,6 +265,182 @@ def trigger_transcription(
     updated_meeting = meeting_service.update_status(db, meeting, MeetingStatus.TRANSCRIBING)
     background_tasks.add_task(_run_transcription_in_background, meeting_id)
     return MeetingRead.model_validate(updated_meeting)
+
+
+@router.post(
+    "/{meeting_id}/analyze",
+    response_model=MeetingRead,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Trigger AI meeting intelligence analysis",
+)
+def trigger_ai_analysis(
+    meeting_id: int,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+) -> MeetingRead:
+    """Trigger or retry AI analysis for a meeting in the background."""
+    meeting = meeting_service.get_by_id(db, meeting_id)
+    if not meeting:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Meeting not found",
+        )
+
+    valid_statuses = {MeetingStatus.TRANSCRIBED, MeetingStatus.COMPLETED, MeetingStatus.FAILED}
+    if meeting.status not in valid_statuses:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Meeting status is '{meeting.status}'. Must be transcribed before running AI analysis.",
+        )
+
+    if meeting.status == MeetingStatus.ANALYZING:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="AI Analysis is already in progress for this meeting",
+        )
+
+    updated_meeting = meeting_service.update_status(db, meeting, MeetingStatus.ANALYZING)
+    background_tasks.add_task(_run_ai_analysis_in_background, meeting_id)
+    return MeetingRead.model_validate(updated_meeting)
+
+
+@router.get(
+    "/{meeting_id}/summary",
+    response_model=SummaryRead,
+    status_code=status.HTTP_200_OK,
+    summary="Get meeting summary",
+)
+def get_meeting_summary(
+    meeting_id: int,
+    db: Session = Depends(get_db),
+) -> SummaryRead:
+    """Retrieve AI-generated summary for a meeting."""
+    meeting = meeting_service.get_by_id(db, meeting_id)
+    if not meeting:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
+
+    summary = db.query(Summary).filter(Summary.meeting_id == meeting_id).first()
+    if not summary:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting summary not found")
+
+    return SummaryRead.model_validate(summary)
+
+
+@router.get(
+    "/{meeting_id}/action-items",
+    response_model=list[ActionItemRead],
+    status_code=status.HTTP_200_OK,
+    summary="Get meeting action items",
+)
+def get_meeting_action_items(
+    meeting_id: int,
+    db: Session = Depends(get_db),
+) -> list[ActionItemRead]:
+    """Retrieve AI-extracted action items for a meeting."""
+    meeting = meeting_service.get_by_id(db, meeting_id)
+    if not meeting:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
+
+    items = db.query(ActionItem).filter(ActionItem.meeting_id == meeting_id).all()
+    return [ActionItemRead.model_validate(item) for item in items]
+
+
+@router.get(
+    "/{meeting_id}/chapters",
+    response_model=list[ChapterRead],
+    status_code=status.HTTP_200_OK,
+    summary="Get meeting chapters",
+)
+def get_meeting_chapters(
+    meeting_id: int,
+    db: Session = Depends(get_db),
+) -> list[ChapterRead]:
+    """Retrieve topic chapters for a meeting."""
+    meeting = meeting_service.get_by_id(db, meeting_id)
+    if not meeting:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
+
+    chapters = (
+        db.query(Chapter)
+        .filter(Chapter.meeting_id == meeting_id)
+        .order_by(Chapter.sequence_number.asc())
+        .all()
+    )
+    return [ChapterRead.model_validate(ch) for ch in chapters]
+
+
+@router.get(
+    "/{meeting_id}/transcript",
+    response_model=list[TranscriptSegmentRead],
+    status_code=status.HTTP_200_OK,
+    summary="Get meeting transcript segments",
+)
+def get_meeting_transcript(
+    meeting_id: int,
+    db: Session = Depends(get_db),
+) -> list[TranscriptSegmentRead]:
+    """Retrieve ordered transcript segments for a meeting."""
+    meeting = meeting_service.get_by_id(db, meeting_id)
+    if not meeting:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
+
+    segments = (
+        db.query(TranscriptSegment)
+        .filter(TranscriptSegment.meeting_id == meeting_id)
+        .order_by(TranscriptSegment.sequence_number.asc())
+        .all()
+    )
+    return [TranscriptSegmentRead.model_validate(seg) for seg in segments]
+
+
+@router.get(
+    "/{meeting_id}/intelligence",
+    response_model=MeetingIntelligenceRead,
+    status_code=status.HTTP_200_OK,
+    summary="Get aggregated meeting intelligence",
+)
+def get_meeting_intelligence(
+    meeting_id: int,
+    db: Session = Depends(get_db),
+) -> MeetingIntelligenceRead:
+    """Retrieve aggregated meeting intelligence (meeting, summary, action items, chapters, participants, transcript)."""
+    meeting = meeting_service.get_by_id(db, meeting_id)
+    if not meeting:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
+
+    summary_obj = db.query(Summary).filter(Summary.meeting_id == meeting_id).first()
+    summary_read = SummaryRead.model_validate(summary_obj) if summary_obj else None
+
+    action_items = db.query(ActionItem).filter(ActionItem.meeting_id == meeting_id).all()
+    action_items_read = [ActionItemRead.model_validate(item) for item in action_items]
+
+    chapters = (
+        db.query(Chapter)
+        .filter(Chapter.meeting_id == meeting_id)
+        .order_by(Chapter.sequence_number.asc())
+        .all()
+    )
+    chapters_read = [ChapterRead.model_validate(ch) for ch in chapters]
+
+    participants = db.query(Participant).filter(Participant.meeting_id == meeting_id).all()
+    participants_read = [ParticipantRead.model_validate(p) for p in participants]
+
+    segments = (
+        db.query(TranscriptSegment)
+        .filter(TranscriptSegment.meeting_id == meeting_id)
+        .order_by(TranscriptSegment.sequence_number.asc())
+        .all()
+    )
+    segments_read = [TranscriptSegmentRead.model_validate(seg) for seg in segments]
+
+    return MeetingIntelligenceRead(
+        meeting=MeetingRead.model_validate(meeting),
+        summary=summary_read,
+        action_items=action_items_read,
+        chapters=chapters_read,
+        participants=participants_read,
+        transcript_segments=segments_read,
+    )
 
 
 @router.delete(
