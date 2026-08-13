@@ -20,6 +20,7 @@ class MeetingCreate(BaseModel):
     recorded_at: datetime = Field(..., description="Timestamp when the meeting was recorded")
     duration_ms: int | None = Field(None, ge=0, description="Meeting duration in milliseconds")
     status: str = Field("created", max_length=30, description="Meeting status")
+    workspace_id: int | None = Field(None, description="Target workspace ID")
 
 
 class MeetingUpdate(BaseModel):
@@ -28,6 +29,7 @@ class MeetingUpdate(BaseModel):
     recorded_at: datetime | None = Field(None, description="Updated recorded timestamp")
     duration_ms: int | None = Field(None, ge=0, description="Updated duration in milliseconds")
     status: str | None = Field(None, max_length=30, description="Updated status")
+    workspace_id: int | None = Field(None, description="Updated workspace ID")
 
 
 class MeetingRead(TimestampedModel):
@@ -43,6 +45,7 @@ class MeetingRead(TimestampedModel):
     audio_size_bytes: int | None = None
     error_message: str | None = None
     user_id: int | None = None
+    workspace_id: int | None = None
 
 
 class MeetingStatusRead(ORMModel):

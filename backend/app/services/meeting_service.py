@@ -4,19 +4,37 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.meeting import Meeting, MeetingStatus
+from app.models.workspace_member import WorkspaceMember
 from app.schemas.meeting import MeetingCreate, MeetingUpdate
 
 
 class MeetingService:
     """Service layer handling database business logic for Meetings."""
 
-    def create(self, db: Session, obj_in: MeetingCreate, user_id: int | None = None) -> Meeting:
-        """Create and persist a new Meeting record."""
+    def _get_user_workspace_ids(self, db: Session, user_id: int) -> list[int]:
+        """Fetch all workspace IDs where user is a member."""
+        memberships = db.query(WorkspaceMember.workspace_id).filter(WorkspaceMember.user_id == user_id).all()
+        return [m[0] for m in memberships]
+
+    def create(self, db: Session, obj_in: MeetingCreate, user_id: int | None = None, workspace_id: int | None = None) -> Meeting:
+        """Create and persist a new Meeting record associated with a workspace."""
         data = obj_in.model_dump()
-        # Always remove any user_id the schema may have received; ownership is server-controlled.
         data.pop("user_id", None)
         if user_id is not None:
             data["user_id"] = user_id
+
+        # Determine target workspace_id
+        target_workspace_id = workspace_id or data.get("workspace_id")
+        if not target_workspace_id and user_id is not None:
+            from app.services.workspace_service import workspace_service
+            user = db.query(User).filter(User.id == user_id).first() if 'User' in globals() else None
+            if user:
+                default_w = workspace_service.get_or_create_default_workspace(db, user)
+                target_workspace_id = default_w.id
+
+        if target_workspace_id:
+            data["workspace_id"] = target_workspace_id
+
         meeting = Meeting(**data)
         db.add(meeting)
         db.commit()
@@ -24,10 +42,11 @@ class MeetingService:
         return meeting
 
     def get_by_id(self, db: Session, meeting_id: int, user_id: int | None = None) -> Meeting | None:
-        """Fetch a single Meeting by ID, optionally scoped by user_id."""
+        """Fetch a single Meeting by ID, scoped by workspace membership if user_id is provided."""
         query = db.query(Meeting).filter(Meeting.id == meeting_id)
         if user_id is not None:
-            query = query.filter(Meeting.user_id == user_id)
+            w_ids = self._get_user_workspace_ids(db, user_id)
+            query = query.filter((Meeting.workspace_id.in_(w_ids)) | (Meeting.user_id == user_id))
         return query.first()
 
     def list(
@@ -39,13 +58,20 @@ class MeetingService:
         status: str | None = None,
         search: str | None = None,
         user_id: int | None = None,
+        workspace_id: int | None = None,
     ) -> tuple[list[Meeting], int]:
-        """List meetings with pagination, optional status filtering, title search, and user_id scoping."""
+        """List meetings with pagination, optional status filtering, title search, user_id scoping, and workspace filtering."""
         skip = (page - 1) * size
         query = db.query(Meeting)
 
-        if user_id is not None:
-            query = query.filter(Meeting.user_id == user_id)
+        if workspace_id is not None:
+            if user_id is not None:
+                from app.services.workspace_service import workspace_service
+                workspace_service.verify_workspace_access(db, user_id, workspace_id)
+            query = query.filter(Meeting.workspace_id == workspace_id)
+        elif user_id is not None:
+            w_ids = self._get_user_workspace_ids(db, user_id)
+            query = query.filter((Meeting.workspace_id.in_(w_ids)) | (Meeting.user_id == user_id))
 
         if status:
             query = query.filter(Meeting.status == status)
@@ -73,27 +99,46 @@ class MeetingService:
         status: str | None = None,
         user_id: int | None = None,
     ) -> tuple[list[Meeting], int]:
-        """Search meetings across title and transcript text with pagination and optional user_id scoping."""
+        """Search meetings across title, transcript, summary, action items, chapters, and participants."""
+        from app.models.action_item import ActionItem
+        from app.models.chapter import Chapter
+        from app.models.participant import Participant
+        from app.models.summary import Summary
         from app.models.transcript_segment import TranscriptSegment
 
         skip = (page - 1) * size
-        pattern = f"%{query_str}%"
+        pattern = f"%{query_str.strip()}%"
 
-        # Outer join to TranscriptSegment to match title OR segment text
-        base_query = db.query(Meeting).outerjoin(TranscriptSegment)
+        w_ids = self._get_user_workspace_ids(db, user_id) if user_id is not None else []
+
+        base_query = (
+            db.query(Meeting)
+            .outerjoin(TranscriptSegment, TranscriptSegment.meeting_id == Meeting.id)
+            .outerjoin(Summary, Summary.meeting_id == Meeting.id)
+            .outerjoin(ActionItem, ActionItem.meeting_id == Meeting.id)
+            .outerjoin(Chapter, Chapter.meeting_id == Meeting.id)
+            .outerjoin(Participant, Participant.meeting_id == Meeting.id)
+        )
 
         if user_id is not None:
-            base_query = base_query.filter(Meeting.user_id == user_id)
+            base_query = base_query.filter((Meeting.workspace_id.in_(w_ids)) | (Meeting.user_id == user_id))
 
         if status:
             base_query = base_query.filter(Meeting.status == status)
 
         if query_str and query_str.strip():
             base_query = base_query.filter(
-                (Meeting.title.ilike(pattern)) | (TranscriptSegment.text.ilike(pattern))
+                (Meeting.title.ilike(pattern))
+                | (TranscriptSegment.text.ilike(pattern))
+                | (Summary.overview.ilike(pattern))
+                | (Summary.key_points.ilike(pattern))
+                | (ActionItem.description.ilike(pattern))
+                | (Chapter.title.ilike(pattern))
+                | (Chapter.summary.ilike(pattern))
+                | (Participant.display_name.ilike(pattern))
+                | (Participant.speaker_label.ilike(pattern))
             )
 
-        # Distinct meeting IDs to avoid duplicates from multiple segment matches
         distinct_query = base_query.distinct()
         total = distinct_query.count()
 

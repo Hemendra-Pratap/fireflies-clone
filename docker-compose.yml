@@ -1,0 +1,84 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: fireflies_postgres
+    restart: always
+    environment:
+      POSTGRES_DB: fireflies
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d fireflies"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: fireflies_backend
+    restart: always
+    environment:
+      ENVIRONMENT: production
+      DATABASE_URL: postgresql://postgres:postgrespassword@postgres:5432/fireflies
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-prod_secure_secret_key_change_me_123456}
+      AUDIO_STORAGE_PATH: /app/storage/audio
+      TRANSCRIPTION_PROVIDER: ${TRANSCRIPTION_PROVIDER:-mock}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      CORS_ORIGINS: http://localhost,http://localhost:80,http://127.0.0.1
+    ports:
+      - "8000:8000"
+    volumes:
+      - audio_data:/app/storage/audio
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: fireflies_worker
+    restart: always
+    command: ["python", "-m", "app.worker.runner"]
+    environment:
+      ENVIRONMENT: production
+      DATABASE_URL: postgresql://postgres:postgrespassword@postgres:5432/fireflies
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-prod_secure_secret_key_change_me_123456}
+      AUDIO_STORAGE_PATH: /app/storage/audio
+      TRANSCRIPTION_PROVIDER: ${TRANSCRIPTION_PROVIDER:-mock}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+    volumes:
+      - audio_data:/app/storage/audio
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: fireflies_frontend
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  audio_data:

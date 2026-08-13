@@ -4,7 +4,14 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user
 from app.db.session import get_db
 from app.models.user import User
-from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse, UserRead
+from app.schemas.auth import (
+    LoginRequest,
+    PasswordChangeRequest,
+    RegisterRequest,
+    TokenResponse,
+    UserProfileUpdate,
+    UserRead,
+)
 from app.services.auth_service import auth_service
 
 router = APIRouter()
@@ -67,3 +74,46 @@ def get_me(
 ) -> UserRead:
     """Return profile metadata of current authenticated user."""
     return current_user
+
+
+@router.patch(
+    "/me",
+    response_model=UserRead,
+    status_code=status.HTTP_200_OK,
+    summary="Update current user profile",
+)
+def update_me(
+    payload: UserProfileUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> UserRead:
+    """Update profile metadata for current authenticated user."""
+    updated_user = auth_service.update_profile(db, current_user, full_name=payload.full_name)
+    return updated_user
+
+
+@router.post(
+    "/change-password",
+    status_code=status.HTTP_200_OK,
+    summary="Change user password",
+)
+def change_password(
+    payload: PasswordChangeRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Change password for current authenticated user."""
+    try:
+        auth_service.change_password(
+            db,
+            user=current_user,
+            current_password=payload.current_password,
+            new_password=payload.new_password,
+        )
+    except ValueError as val_err:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(val_err),
+        )
+
+    return {"message": "Password updated successfully"}

@@ -11,16 +11,18 @@ import {
 } from '../types/meeting';
 
 export const meetingsApi = {
-  async listMeetings(page = 1, size = 20, status?: string): Promise<MeetingListResponse> {
+  async listMeetings(page = 1, size = 20, status?: string, workspaceId?: number): Promise<MeetingListResponse> {
     const params: Record<string, any> = { page, size };
     if (status) params.status = status;
+    if (workspaceId) params.workspace_id = workspaceId;
     const res = await apiClient.get<MeetingListResponse>('/meetings', { params });
     return res.data;
   },
 
-  async searchMeetings(q: string, page = 1, size = 20, status?: string): Promise<MeetingListResponse> {
+  async searchMeetings(q: string, page = 1, size = 20, status?: string, workspaceId?: number): Promise<MeetingListResponse> {
     const params: Record<string, any> = { q, page, size };
     if (status) params.status = status;
+    if (workspaceId) params.workspace_id = workspaceId;
     const res = await apiClient.get<MeetingListResponse>('/meetings/search', { params });
     return res.data;
   },
@@ -45,6 +47,9 @@ export const meetingsApi = {
 
     const res = await apiClient.post<Meeting>(`/meetings/${meetingId}/audio`, formData, {
       timeout: 0,
+      headers: {
+        'Content-Type': undefined,
+      },
       onUploadProgress: (progressEvent) => {
         if (progressEvent.total && onProgress) {
           const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);

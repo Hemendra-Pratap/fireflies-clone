@@ -133,3 +133,56 @@ def test_delete_meeting_removes_audio_from_storage(client: TestClient) -> None:
 
     # Confirm file was deleted from storage disk
     assert not full_path.exists()
+
+
+def test_get_meeting_audio_success(client: TestClient) -> None:
+    meeting = create_test_meeting(client)
+    meeting_id = meeting["id"]
+
+    dummy_audio = b"ID3\x04\x00\x00\x00\x00\x00\x00Streaming Audio Content Test"
+    files = {"file": ("stream_recording.mp3", dummy_audio, "audio/mpeg")}
+
+    upload_resp = client.post(f"/api/v1/meetings/{meeting_id}/audio", files=files)
+    assert upload_resp.status_code == 200
+
+    # Test GET audio endpoint
+    audio_resp = client.get(f"/api/v1/meetings/{meeting_id}/audio")
+    assert audio_resp.status_code == 200
+    assert audio_resp.content == dummy_audio
+    assert "audio/mpeg" in audio_resp.headers.get("content-type", "")
+
+    storage_service.delete_file(upload_resp.json()["audio_file_path"])
+
+
+def test_get_meeting_audio_not_uploaded(client: TestClient) -> None:
+    meeting = create_test_meeting(client)
+    response = client.get(f"/api/v1/meetings/{meeting['id']}/audio")
+    assert response.status_code == 404
+    assert "not uploaded" in response.json()["detail"].lower()
+
+
+def test_get_meeting_audio_idor_unauthorized(unauth_client: TestClient, db_session: Session) -> None:
+    from app.services.auth_service import auth_service
+    from app.core.security import create_access_token
+    from datetime import datetime, timezone
+
+    user1 = auth_service.register_user(db_session, "audio_user1@example.com", "password123")
+    user2 = auth_service.register_user(db_session, "audio_user2@example.com", "password123")
+
+    m1 = Meeting(
+        title="User 1 Audio Meeting",
+        recorded_at=datetime.now(timezone.utc),
+        status=MeetingStatus.UPLOADED,
+        audio_file_path="audio/mock.mp3",
+        user_id=user1.id,
+    )
+    db_session.add(m1)
+    db_session.commit()
+
+    token2, _ = create_access_token(str(user2.id))
+    headers2 = {"Authorization": f"Bearer {token2}"}
+
+    # User 2 attempts to fetch User 1's audio file
+    resp = unauth_client.get(f"/api/v1/meetings/{m1.id}/audio", headers=headers2)
+    assert resp.status_code == 404
+

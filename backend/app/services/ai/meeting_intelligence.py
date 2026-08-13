@@ -26,6 +26,20 @@ def format_timestamp(ms: int) -> str:
     return f"{minutes:02d}:{seconds:02d}"
 
 
+def parse_due_date(raw_date: str | None) -> datetime | None:
+    """Parse string due date into timezone-aware or naive datetime safely."""
+    if not raw_date or not raw_date.strip():
+        return None
+    cleaned = raw_date.strip().replace("Z", "+00:00")
+    try:
+        return datetime.fromisoformat(cleaned)
+    except ValueError:
+        try:
+            return datetime.strptime(cleaned[:10], "%Y-%m-%d")
+        except ValueError:
+            return None
+
+
 class MeetingIntelligenceService:
     """Service orchestrating AI transcript analysis and persistence into Summary, ActionItem, and Chapter tables."""
 
@@ -152,13 +166,8 @@ class MeetingIntelligenceService:
                     participant_cache[label] = new_p
                 participant_id = participant_cache[label].id
 
-            # Parse optional due date
-            due_at = None
-            if item_data.due_date:
-                try:
-                    due_at = datetime.fromisoformat(item_data.due_date.replace("Z", "+00:00"))
-                except ValueError:
-                    due_at = None
+            # Parse optional due date using parse_due_date helper
+            due_at = parse_due_date(item_data.due_date)
 
             action_item = ActionItem(
                 meeting_id=meeting_id,

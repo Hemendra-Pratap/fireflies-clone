@@ -2,13 +2,14 @@ import asyncio
 from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
 from app.db.session import SessionLocal, get_db
 from app.models.action_item import ActionItem
 from app.models.chapter import Chapter
-from app.models.meeting import MeetingStatus
+from app.models.meeting import Meeting, MeetingStatus
 from app.models.participant import Participant
 from app.models.summary import Summary
 from app.models.transcript_segment import TranscriptSegment
@@ -40,26 +41,32 @@ from app.services.transcription_service import transcription_service
 router = APIRouter()
 
 
-def _run_transcription_in_background(meeting_id: int) -> None:
-    """Worker function for running async transcription in background thread."""
-    db = SessionLocal()
+from app.models.job import JobType
+from app.worker.processor import job_processor
+
+
+def _run_transcription_in_background(meeting_id: int, db: Session | None = None) -> None:
+    """Worker function for executing durable transcription job."""
+    session = db or SessionLocal()
     try:
-        asyncio.run(transcription_service.transcribe_meeting(db, meeting_id))
+        job_processor.enqueue_and_process(session, JobType.TRANSCRIPTION, meeting_id)
     except Exception:
         pass
     finally:
-        db.close()
+        if db is None:
+            session.close()
 
 
-def _run_ai_analysis_in_background(meeting_id: int) -> None:
-    """Worker function for running async AI Meeting Intelligence in background thread."""
-    db = SessionLocal()
+def _run_ai_analysis_in_background(meeting_id: int, db: Session | None = None) -> None:
+    """Worker function for executing durable AI analysis job."""
+    session = db or SessionLocal()
     try:
-        asyncio.run(meeting_intelligence_service.analyze_meeting(db, meeting_id))
+        job_processor.enqueue_and_process(session, JobType.AI_ANALYSIS, meeting_id)
     except Exception:
         pass
     finally:
-        db.close()
+        if db is None:
+            session.close()
 
 
 @router.post(
@@ -89,12 +96,13 @@ def list_meetings(
     size: int = Query(20, ge=1, le=100, description="Items per page"),
     status: str | None = Query(None, description="Filter by status (e.g. completed)"),
     search: str | None = Query(None, description="Search in title"),
+    workspace_id: int | None = Query(None, description="Filter by workspace ID"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> MeetingListResponse:
-    """List meetings for the current authenticated user with pagination, status filter, and search."""
+    """List meetings for the current authenticated user with pagination, status filter, search, and workspace filter."""
     items, total = meeting_service.list(
-        db, page=page, size=size, status=status, search=search, user_id=current_user.id
+        db, page=page, size=size, status=status, search=search, user_id=current_user.id, workspace_id=workspace_id
     )
     items_read = [MeetingRead.model_validate(item) for item in items]
     return MeetingListResponse.create(
@@ -199,11 +207,12 @@ def get_meeting_status(
 )
 async def upload_meeting_audio(
     meeting_id: int,
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(..., description="Audio recording file"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> MeetingRead:
-    """Upload an audio file for a meeting owned by current user."""
+    """Upload an audio file for a meeting owned by current user and queue background processing."""
     meeting = meeting_service.get_by_id(db, meeting_id, user_id=current_user.id)
     if not meeting:
         raise HTTPException(
@@ -243,6 +252,13 @@ async def upload_meeting_audio(
             detail=f"Failed to persist audio file: {exc}",
         )
 
+    if size_bytes == 0:
+        storage_service.delete_file(relative_path)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Uploaded audio file is empty (0 bytes).",
+        )
+
     # Persist metadata to DB; if DB update fails, clean up stored file
     try:
         updated_meeting = meeting_service.attach_audio(
@@ -260,7 +276,51 @@ async def upload_meeting_audio(
             detail="Failed to update database with audio metadata",
         )
 
+    # Queue background processing (STT -> Intelligence -> Completed)
+    background_tasks.add_task(_run_transcription_in_background, meeting_id)
+
     return MeetingRead.model_validate(updated_meeting)
+
+
+@router.get(
+    "/{meeting_id}/audio",
+    status_code=status.HTTP_200_OK,
+    summary="Serve meeting audio file",
+)
+def get_meeting_audio(
+    meeting_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> FileResponse:
+    """Stream or serve the audio recording file for a meeting owned by current user (IDOR protected)."""
+    meeting = meeting_service.get_by_id(db, meeting_id, user_id=current_user.id)
+    if not meeting:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Meeting not found",
+        )
+
+    if not meeting.audio_file_path:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Audio file not uploaded for this meeting",
+        )
+
+    full_audio_path = storage_service.get_full_path(meeting.audio_file_path)
+    if not full_audio_path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Audio file missing on disk",
+        )
+
+    media_type = meeting.audio_mime_type or "audio/mpeg"
+    filename = meeting.audio_filename or f"meeting_{meeting_id}.mp3"
+
+    return FileResponse(
+        path=full_audio_path,
+        media_type=media_type,
+        filename=filename,
+    )
 
 
 @router.post(
@@ -335,6 +395,49 @@ def trigger_ai_analysis(
 
     updated_meeting = meeting_service.update_status(db, meeting, MeetingStatus.ANALYZING)
     background_tasks.add_task(_run_ai_analysis_in_background, meeting_id)
+    return MeetingRead.model_validate(updated_meeting)
+
+
+@router.post(
+    "/{meeting_id}/retry",
+    response_model=MeetingRead,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Retry failed or pending meeting processing",
+)
+def retry_meeting_processing(
+    meeting_id: int,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> MeetingRead:
+    """Retry audio transcription or AI analysis for a meeting owned by current user."""
+    meeting = meeting_service.get_by_id(db, meeting_id, user_id=current_user.id)
+    if not meeting:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Meeting not found",
+        )
+
+    if not meeting.audio_file_path:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Meeting has no uploaded audio file to process",
+        )
+
+    # Check if transcript segments exist
+    has_transcript = (
+        db.query(TranscriptSegment).filter(TranscriptSegment.meeting_id == meeting_id).count() > 0
+    )
+
+    if has_transcript:
+        # Transcript exists -> retry AI analysis
+        updated_meeting = meeting_service.update_status(db, meeting, MeetingStatus.ANALYZING)
+        background_tasks.add_task(_run_ai_analysis_in_background, meeting_id)
+    else:
+        # Transcript missing -> retry full transcription pipeline
+        updated_meeting = meeting_service.update_status(db, meeting, MeetingStatus.TRANSCRIBING)
+        background_tasks.add_task(_run_transcription_in_background, meeting_id)
+
     return MeetingRead.model_validate(updated_meeting)
 
 

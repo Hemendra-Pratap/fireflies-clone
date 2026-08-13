@@ -4,12 +4,17 @@ from importlib import import_module
 import pkgutil
 
 from app.models.action_item import ActionItem
+from app.models.calendar_connection import CalendarConnection, CalendarConnectionStatus, CalendarProviderType
+from app.models.calendar_event import CalendarEvent, CalendarEventStatus
 from app.models.chapter import Chapter
+from app.models.job import Job, JobStatus, JobType
 from app.models.meeting import Meeting
 from app.models.participant import Participant
 from app.models.summary import Summary
 from app.models.transcript_segment import TranscriptSegment
 from app.models.user import User
+from app.models.workspace import Workspace
+from app.models.workspace_member import WorkspaceMember, WorkspaceRole
 
 
 def import_models() -> None:
@@ -21,13 +26,28 @@ def import_models() -> None:
         import_module(f"{__name__}.{module_info.name}")
 
 
+from app.models.notification import Notification, NotificationType
+
 __all__ = [
     "ActionItem",
+    "CalendarConnection",
+    "CalendarConnectionStatus",
+    "CalendarEvent",
+    "CalendarEventStatus",
+    "CalendarProviderType",
     "Chapter",
+    "Job",
+    "JobStatus",
+    "JobType",
     "Meeting",
+    "Notification",
+    "NotificationType",
     "Participant",
     "Summary",
     "TranscriptSegment",
     "User",
+    "Workspace",
+    "WorkspaceMember",
+    "WorkspaceRole",
     "import_models",
 ]

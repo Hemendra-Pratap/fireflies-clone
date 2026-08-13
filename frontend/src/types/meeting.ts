@@ -18,6 +18,7 @@ export interface Meeting {
   audio_filename: string | null;
   audio_mime_type: string | null;
   audio_size_bytes: number | null;
+  workspace_id?: number | null;
   error_message: string | null;
   created_at: string;
   updated_at: string;
@@ -91,4 +92,5 @@ export interface MeetingCreateInput {
   source_name?: string;
   recorded_at?: string;
   duration_ms?: number;
+  workspace_id?: number;
 }

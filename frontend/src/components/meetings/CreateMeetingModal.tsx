@@ -3,6 +3,8 @@ import { meetingsApi } from '../../api/meetings';
 import { Meeting } from '../../types/meeting';
 import { X, UploadCloud, FileAudio, AlertCircle, Loader2 } from 'lucide-react';
 
+import { useWorkspace } from '../../context/WorkspaceContext';
+
 interface CreateMeetingModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -19,6 +21,7 @@ export const CreateMeetingModal: React.FC<CreateMeetingModalProps> = ({
   onClose,
   onSuccess,
 }) => {
+  const { activeWorkspace } = useWorkspace();
   const [title, setTitle] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [recordedAt, setRecordedAt] = useState<string>(toDatetimeLocal(new Date()));
@@ -78,11 +81,12 @@ export const CreateMeetingModal: React.FC<CreateMeetingModalProps> = ({
 
     let createdMeetingId: number | null = null;
     try {
-      // 1. Create Meeting
+      // 1. Create Meeting associated with active workspace
       const newMeeting = await meetingsApi.createMeeting({
         title: title.trim(),
         source_name: 'Web Upload',
         recorded_at: recordedAt ? new Date(recordedAt).toISOString() : new Date().toISOString(),
+        workspace_id: activeWorkspace?.id,
       });
       createdMeetingId = newMeeting.id;
 

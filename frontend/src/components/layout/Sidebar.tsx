@@ -10,8 +10,8 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab, user, onLogout }) => {
-  // Derive initials and avatar letter from email
-  const avatarLetter = user.email.charAt(0).toUpperCase();
+  const avatarLetter = (user.full_name || user.email).charAt(0).toUpperCase();
+  const displayName = user.full_name || user.email;
 
   return (
     <aside className="sidebar">
@@ -24,6 +24,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab, use
 
       <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
         <button
+          id="nav-dashboard"
           className={`nav-item ${currentTab === 'dashboard' ? 'active' : ''}`}
           onClick={() => setCurrentTab('dashboard')}
         >
@@ -32,26 +33,27 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab, use
         </button>
 
         <button
-          className={`nav-item ${currentTab === 'meetings' ? 'active' : ''}`}
-          onClick={() => setCurrentTab('dashboard')}
+          id="nav-meetings"
+          className={`nav-item ${currentTab === 'all-meetings' ? 'active' : ''}`}
+          onClick={() => setCurrentTab('all-meetings')}
         >
           <Mic size={18} />
           <span>All Meetings</span>
         </button>
 
         <button
-          className="nav-item"
-          style={{ opacity: 0.6, cursor: 'not-allowed' }}
-          disabled
+          id="nav-workspaces"
+          className={`nav-item ${currentTab === 'workspaces' ? 'active' : ''}`}
+          onClick={() => setCurrentTab('workspaces')}
         >
           <FolderKanban size={18} />
           <span>Workspaces</span>
         </button>
 
         <button
-          className="nav-item"
-          style={{ opacity: 0.6, cursor: 'not-allowed' }}
-          disabled
+          id="nav-settings"
+          className={`nav-item ${currentTab === 'settings' ? 'active' : ''}`}
+          onClick={() => setCurrentTab('settings')}
         >
           <Settings size={18} />
           <span>Settings</span>
@@ -91,9 +93,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab, use
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
               }}
-              title={user.email}
+              title={displayName}
             >
-              {user.email}
+              {displayName}
             </div>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Authenticated</div>
           </div>

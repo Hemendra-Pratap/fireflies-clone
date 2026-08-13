@@ -217,3 +217,61 @@ def test_duplicate_transcription_conflict(client: TestClient, db_session: Sessio
     # Cleanup
     if meeting.get("audio_file_path"):
         storage_service.delete_file(meeting["audio_file_path"])
+
+
+def test_gemini_provider_config_validation(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.services.transcription_provider import (
+        GeminiTranscriptionProvider,
+        get_transcription_provider,
+    )
+
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+
+    # Directly creating GeminiTranscriptionProvider without API key raises ValueError on transcribe
+    provider = GeminiTranscriptionProvider(api_key="")
+    with pytest.raises(ValueError, match="GEMINI_API_KEY is not configured"):
+        asyncio.run(provider.transcribe(Path("dummy.mp3")))
+
+    # Requesting gemini provider when API key is unconfigured raises ValueError
+    with pytest.raises(ValueError, match="GEMINI_API_KEY is missing or unconfigured"):
+        get_transcription_provider(provider_name="gemini")
+
+
+@pytest.mark.anyio
+async def test_empty_transcript_handling(db_session: Session, client: TestClient) -> None:
+    meeting = create_meeting_with_audio(client)
+    meeting_id = meeting["id"]
+
+    class EmptyTranscriptionProvider:
+        async def transcribe(self, audio_file_path: Path):
+            from app.services.transcription_provider import TranscriptionResult
+            return TranscriptionResult(segments=[])
+
+    with pytest.raises(ValueError, match="empty transcript"):
+        await transcription_service.transcribe_meeting(
+            db_session, meeting_id, provider=EmptyTranscriptionProvider()
+        )
+
+    db_m = db_session.query(Meeting).filter(Meeting.id == meeting_id).first()
+    assert db_m.status == MeetingStatus.FAILED
+    assert "empty transcript" in db_m.error_message.lower()
+
+    if meeting.get("audio_file_path"):
+        storage_service.delete_file(meeting["audio_file_path"])
+
+
+def test_background_worker_auto_chaining_success(client: TestClient, db_session: Session) -> None:
+    from app.api.v1.routes.meetings import _run_transcription_in_background
+
+    meeting = create_meeting_with_audio(client)
+    meeting_id = meeting["id"]
+
+    _run_transcription_in_background(meeting_id, db=db_session)
+
+    db_session.expire_all()
+    db_m = db_session.query(Meeting).filter(Meeting.id == meeting_id).first()
+    assert db_m.status == MeetingStatus.COMPLETED
+    assert db_m.error_message is None
+
+    if meeting.get("audio_file_path"):
+        storage_service.delete_file(meeting["audio_file_path"])

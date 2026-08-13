@@ -1,0 +1,13 @@
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+*.db
+*.sqlite
+fireflies.db
+storage/audio/*
+.env
+.git
+.gitignore

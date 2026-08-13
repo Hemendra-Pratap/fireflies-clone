@@ -3,6 +3,7 @@ import { meetingsApi } from '../api/meetings';
 import { MeetingIntelligence } from '../types/meeting';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { ProcessingStateView } from '../components/meetings/ProcessingStateView';
+import { AudioPlayer } from '../components/meetings/AudioPlayer';
 import { SummaryTab } from '../components/intelligence/SummaryTab';
 import { ActionItemsTab } from '../components/intelligence/ActionItemsTab';
 import { ChaptersTab } from '../components/intelligence/ChaptersTab';
@@ -22,6 +23,10 @@ export const MeetingDetail: React.FC<MeetingDetailProps> = ({ meetingId, onBack 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // Synchronized playback state
+  const [currentTimeMs, setCurrentTimeMs] = useState<number>(0);
+  const [seekTimeMs, setSeekTimeMs] = useState<number | null>(null);
 
   const fetchIntelligence = async () => {
     setLoading(true);
@@ -177,6 +182,17 @@ export const MeetingDetail: React.FC<MeetingDetailProps> = ({ meetingId, onBack 
         </div>
       </div>
 
+      {/* HTML5 Audio Player Component */}
+      {meeting.audio_file_path && (
+        <AudioPlayer
+          meetingId={meeting.id}
+          audioFilename={meeting.audio_filename}
+          durationMs={meeting.duration_ms}
+          onTimeUpdate={(ms) => setCurrentTimeMs(ms)}
+          seekTimeMs={seekTimeMs}
+        />
+      )}
+
       {/* Processing Workflow Stepper (Shown if processing is incomplete) */}
       {!isCompleted && (
         <ProcessingStateView
@@ -225,7 +241,17 @@ export const MeetingDetail: React.FC<MeetingDetailProps> = ({ meetingId, onBack 
           {activeTab === 'summary' && <SummaryTab summary={summary} />}
           {activeTab === 'action_items' && <ActionItemsTab actionItems={action_items} participants={participants} />}
           {activeTab === 'chapters' && <ChaptersTab chapters={chapters} />}
-          {activeTab === 'transcript' && <TranscriptTab segments={transcript_segments} participants={participants} />}
+          {activeTab === 'transcript' && (
+            <TranscriptTab
+              segments={transcript_segments}
+              participants={participants}
+              currentTimeMs={currentTimeMs}
+              onSegmentClick={(startMs) => {
+                setSeekTimeMs(startMs);
+                setActiveTab('transcript');
+              }}
+            />
+          )}
         </>
       )}
     </div>

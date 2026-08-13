@@ -30,6 +30,9 @@ class TranscriptionService:
             raise KeyError(f"Meeting with ID {meeting_id} not found.")
 
         if not meeting.audio_file_path:
+            meeting.status = MeetingStatus.FAILED
+            meeting.error_message = "Meeting has no uploaded audio file."
+            db.commit()
             raise ValueError(f"Meeting {meeting_id} has no uploaded audio file.")
 
         full_audio_path = storage_service.get_full_path(meeting.audio_file_path)
@@ -55,6 +58,15 @@ class TranscriptionService:
             db.commit()
             db.refresh(meeting)
             raise
+
+        # Check for empty transcript
+        valid_segments = [s for s in result.segments if s.text and s.text.strip()]
+        if not valid_segments:
+            meeting.status = MeetingStatus.FAILED
+            meeting.error_message = "Transcription produced an empty transcript."
+            db.commit()
+            db.refresh(meeting)
+            raise ValueError("Transcription produced an empty transcript.")
 
         # Successful provider execution -> clear any existing segments for clean retry
         db.query(TranscriptSegment).filter(TranscriptSegment.meeting_id == meeting_id).delete(

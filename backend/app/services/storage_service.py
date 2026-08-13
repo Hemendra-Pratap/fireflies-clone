@@ -62,7 +62,7 @@ class StorageService(ABC):
 class LocalStorageService(StorageService):
     def __init__(self, storage_dir: Path | None = None):
         if storage_dir is None:
-            self.storage_dir = settings.backend_dir / "storage" / "audio"
+            self.storage_dir = Path(settings.audio_storage_path)
         else:
             self.storage_dir = Path(storage_dir)
         self.storage_dir.mkdir(parents=True, exist_ok=True)

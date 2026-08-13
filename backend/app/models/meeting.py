@@ -47,8 +47,15 @@ class Meeting(IntegerPrimaryKeyMixin, TimestampMixin, Base):
         nullable=True,
         index=True,
     )
+    workspace_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("workspaces.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
 
     user = relationship("User", backref="meetings")
+    workspace = relationship("Workspace", back_populates="meetings")
 
     participants = relationship(
         "Participant",

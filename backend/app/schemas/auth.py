@@ -23,6 +23,20 @@ class UserRead(TimestampedModel):
 
     id: int
     email: str
+    full_name: str | None = None
+
+
+class UserProfileUpdate(BaseModel):
+    """Schema for updating current user profile."""
+
+    full_name: str | None = Field(None, max_length=255, description="User's full display name")
+
+
+class PasswordChangeRequest(BaseModel):
+    """Schema for requesting a password change."""
+
+    current_password: str = Field(..., min_length=1, description="Existing current password")
+    new_password: str = Field(..., min_length=8, description="New password (min 8 characters)")
 
 
 class LoginRequest(BaseModel):

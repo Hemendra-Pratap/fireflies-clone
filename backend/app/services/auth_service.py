@@ -28,7 +28,13 @@ class AuthService:
         db.add(user)
         db.commit()
         db.refresh(user)
+
+        from app.services.workspace_service import workspace_service
+        workspace_service.get_or_create_default_workspace(db, user)
+
         return user
+
+    register_user = register
 
     def authenticate_user(self, db: Session, email: str, password: str) -> User:
         """Authenticate user by email and password.
@@ -52,6 +58,26 @@ class AuthService:
             token_type="bearer",
             expires_in=expires_in,
         )
+
+    def update_profile(self, db: Session, user: User, full_name: str | None) -> User:
+        """Update authenticated user profile metadata."""
+        user.full_name = full_name.strip() if full_name and full_name.strip() else None
+        db.commit()
+        db.refresh(user)
+        return user
+
+    def change_password(self, db: Session, user: User, current_password: str, new_password: str) -> User:
+        """Securely verify current password and update user password hash."""
+        if not verify_password(current_password, user.password_hash):
+            raise ValueError("Incorrect current password")
+
+        if len(new_password) < 8:
+            raise ValueError("New password must be at least 8 characters long")
+
+        user.password_hash = hash_password(new_password)
+        db.commit()
+        db.refresh(user)
+        return user
 
 
 auth_service = AuthService()

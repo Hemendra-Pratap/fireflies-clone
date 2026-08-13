@@ -257,3 +257,21 @@ def test_intelligence_endpoints_404(client: TestClient) -> None:
     assert client.get("/api/v1/meetings/99999/chapters").status_code == 404
     assert client.get("/api/v1/meetings/99999/transcript").status_code == 404
     assert client.get("/api/v1/meetings/99999/intelligence").status_code == 404
+
+
+def test_parse_due_date_helper() -> None:
+    from app.services.ai.meeting_intelligence import parse_due_date
+
+    assert parse_due_date(None) is None
+    assert parse_due_date("") is None
+    assert parse_due_date("invalid date string") is None
+
+    # Test YYYY-MM-DD
+    dt1 = parse_due_date("2026-08-20")
+    assert dt1 is not None
+    assert dt1.year == 2026 and dt1.month == 8 and dt1.day == 20
+
+    # Test ISO format
+    dt2 = parse_due_date("2026-08-20T14:30:00Z")
+    assert dt2 is not None
+    assert dt2.year == 2026 and dt2.hour == 14
