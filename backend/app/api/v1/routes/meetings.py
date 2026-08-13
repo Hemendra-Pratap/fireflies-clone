@@ -1,0 +1,112 @@
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.orm import Session
+
+from app.db.session import get_db
+from app.schemas.meeting import (
+    MeetingCreate,
+    MeetingListResponse,
+    MeetingRead,
+    MeetingUpdate,
+)
+from app.services.meeting_service import meeting_service
+
+router = APIRouter()
+
+
+@router.post(
+    "",
+    response_model=MeetingRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a new meeting",
+)
+def create_meeting(
+    meeting_in: MeetingCreate,
+    db: Session = Depends(get_db),
+) -> MeetingRead:
+    """Create a new meeting record in the database."""
+    meeting = meeting_service.create(db, meeting_in)
+    return MeetingRead.model_validate(meeting)
+
+
+@router.get(
+    "",
+    response_model=MeetingListResponse,
+    status_code=status.HTTP_200_OK,
+    summary="List meetings with pagination and search",
+)
+def list_meetings(
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    size: int = Query(20, ge=1, le=100, description="Items per page"),
+    status: str | None = Query(None, description="Filter by status (e.g. completed)"),
+    search: str | None = Query(None, description="Search in title"),
+    db: Session = Depends(get_db),
+) -> MeetingListResponse:
+    """List meetings with pagination, optional status filtering, and title search."""
+    items, total = meeting_service.list(
+        db, page=page, size=size, status=status, search=search
+    )
+    items_read = [MeetingRead.model_validate(item) for item in items]
+    return MeetingListResponse.create(
+        items=items_read, total=total, page=page, size=size
+    )
+
+
+@router.get(
+    "/{meeting_id}",
+    response_model=MeetingRead,
+    status_code=status.HTTP_200_OK,
+    summary="Get meeting by ID",
+)
+def get_meeting(
+    meeting_id: int,
+    db: Session = Depends(get_db),
+) -> MeetingRead:
+    """Retrieve details of a single meeting by ID."""
+    meeting = meeting_service.get_by_id(db, meeting_id)
+    if not meeting:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Meeting not found",
+        )
+    return MeetingRead.model_validate(meeting)
+
+
+@router.patch(
+    "/{meeting_id}",
+    response_model=MeetingRead,
+    status_code=status.HTTP_200_OK,
+    summary="Update a meeting",
+)
+def update_meeting(
+    meeting_id: int,
+    meeting_in: MeetingUpdate,
+    db: Session = Depends(get_db),
+) -> MeetingRead:
+    """Perform a partial update on an existing meeting."""
+    meeting = meeting_service.get_by_id(db, meeting_id)
+    if not meeting:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Meeting not found",
+        )
+    updated_meeting = meeting_service.update(db, meeting, meeting_in)
+    return MeetingRead.model_validate(updated_meeting)
+
+
+@router.delete(
+    "/{meeting_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a meeting",
+)
+def delete_meeting(
+    meeting_id: int,
+    db: Session = Depends(get_db),
+) -> None:
+    """Delete a meeting by ID and cascade child records."""
+    meeting = meeting_service.get_by_id(db, meeting_id)
+    if not meeting:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Meeting not found",
+        )
+    meeting_service.delete(db, meeting)
