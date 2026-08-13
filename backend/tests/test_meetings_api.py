@@ -25,6 +25,18 @@ def test_create_meeting_success(client):
     assert "updated_at" in data
 
 
+def test_create_meeting_default_status(client):
+    """POST /api/v1/meetings without status defaults to 'created'."""
+    payload = {
+        "title": "Default Status Meeting",
+        "recorded_at": "2026-08-13T10:00:00Z",
+    }
+    response = client.post("/api/v1/meetings", json=payload)
+    assert response.status_code == 201
+    data = response.json()
+    assert data["status"] == "created"
+
+
 def test_create_meeting_validation_error(client):
     """POST /api/v1/meetings with missing title returns HTTP 422 Unprocessable Entity."""
     payload = {
@@ -47,13 +59,14 @@ def test_list_meetings_empty(client):
     assert data["pages"] == 0
 
 
-def test_list_meetings_pagination(client, db_session):
+def test_list_meetings_pagination(client, db_session, test_user):
     """GET /api/v1/meetings respects page and size parameters."""
     for i in range(5):
         m = Meeting(
             title=f"Meeting {i+1}",
             recorded_at=datetime.now(timezone.utc),
             status="completed",
+            user_id=test_user.id,
         )
         db_session.add(m)
     db_session.commit()
@@ -75,22 +88,25 @@ def test_list_meetings_pagination(client, db_session):
     assert len(d3["items"]) == 1
 
 
-def test_list_meetings_filtering_and_search(client, db_session):
+def test_list_meetings_filtering_and_search(client, db_session, test_user):
     """GET /api/v1/meetings filters by status and searches by title."""
     m1 = Meeting(
         title="Sprint Planning",
         recorded_at=datetime.now(timezone.utc),
         status="completed",
+        user_id=test_user.id,
     )
     m2 = Meeting(
         title="Product Roadmap Sync",
         recorded_at=datetime.now(timezone.utc),
         status="processing",
+        user_id=test_user.id,
     )
     m3 = Meeting(
         title="Sprint Retrospective",
         recorded_at=datetime.now(timezone.utc),
         status="completed",
+        user_id=test_user.id,
     )
     db_session.add_all([m1, m2, m3])
     db_session.commit()
@@ -109,12 +125,13 @@ def test_list_meetings_filtering_and_search(client, db_session):
     assert d_search["total"] == 2
 
 
-def test_get_meeting_by_id_success(client, db_session):
+def test_get_meeting_by_id_success(client, db_session, test_user):
     """GET /api/v1/meetings/{id} returns single meeting details."""
     m = Meeting(
         title="Client Demo",
         source_name="Google Meet",
         recorded_at=datetime.now(timezone.utc),
+        user_id=test_user.id,
     )
     db_session.add(m)
     db_session.commit()
@@ -134,12 +151,13 @@ def test_get_meeting_by_id_not_found(client):
     assert response.json()["detail"] == "Meeting not found"
 
 
-def test_update_meeting_success(client, db_session):
+def test_update_meeting_success(client, db_session, test_user):
     """PATCH /api/v1/meetings/{id} performs partial update."""
     m = Meeting(
         title="Original Title",
         recorded_at=datetime.now(timezone.utc),
         status="processing",
+        user_id=test_user.id,
     )
     db_session.add(m)
     db_session.commit()
@@ -159,10 +177,12 @@ def test_update_meeting_not_found(client):
     assert response.status_code == 404
 
 
-def test_delete_meeting_success(client, db_session):
+def test_delete_meeting_success(client, db_session, test_user):
     """DELETE /api/v1/meetings/{id} deletes meeting and returns HTTP 204 No Content."""
     m = Meeting(
-        title="Meeting to Delete", recorded_at=datetime.now(timezone.utc)
+        title="Meeting to Delete",
+        recorded_at=datetime.now(timezone.utc),
+        user_id=test_user.id,
     )
     db_session.add(m)
     db_session.commit()
@@ -180,10 +200,12 @@ def test_delete_meeting_not_found(client):
     assert response.status_code == 404
 
 
-def test_delete_meeting_cascades_children_via_api(client, db_session):
+def test_delete_meeting_cascades_children_via_api(client, db_session, test_user):
     """Deleting a meeting via API cascades and deletes child participant and summary records."""
     m = Meeting(
-        title="Cascade Test Meeting", recorded_at=datetime.now(timezone.utc)
+        title="Cascade Test Meeting",
+        recorded_at=datetime.now(timezone.utc),
+        user_id=test_user.id,
     )
     db_session.add(m)
     db_session.commit()

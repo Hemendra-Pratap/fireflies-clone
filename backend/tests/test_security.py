@@ -46,3 +46,19 @@ def test_verify_password_invalid_or_malformed_hash():
     assert verify_password(plain, "$argon2id$v=19$m=65536,t=3,p=4$invalid$invalid") is False
     assert verify_password(plain, "") is False
     assert verify_password(plain, None) is False
+
+
+def test_create_and_decode_access_token():
+    """Verify JWT access token creation and payload decoding."""
+    from datetime import timedelta
+    from app.core.security import create_access_token, decode_access_token
+
+    token, expires_in = create_access_token(subject=42, expires_delta=timedelta(minutes=15))
+
+    assert isinstance(token, str)
+    assert expires_in == 15 * 60
+
+    payload = decode_access_token(token)
+    assert payload["sub"] == "42"
+    assert "exp" in payload
+    assert "iat" in payload

@@ -44,9 +44,7 @@ export const meetingsApi = {
     formData.append('file', file);
 
     const res = await apiClient.post<Meeting>(`/meetings/${meetingId}/audio`, formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
+      timeout: 0,
       onUploadProgress: (progressEvent) => {
         if (progressEvent.total && onProgress) {
           const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);

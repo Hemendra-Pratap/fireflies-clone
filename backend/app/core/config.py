@@ -18,10 +18,13 @@ class Settings:
     backend_dir: Path = BACKEND_DIR
     gemini_api_key: str | None = os.getenv("GEMINI_API_KEY")
     gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+    jwt_secret_key: str = os.getenv("JWT_SECRET_KEY", "dev_secret_key_change_in_production_123456789")
+    jwt_algorithm: str = os.getenv("JWT_ALGORITHM", "HS256")
+    jwt_access_token_expire_minutes: int = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
 
     @property
     def cors_origins(self) -> list[str]:
-        origins_str = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173")
+        origins_str = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://172.22.44.26:5173")
         return [origin.strip() for origin in origins_str.split(",") if origin.strip()]
 
 

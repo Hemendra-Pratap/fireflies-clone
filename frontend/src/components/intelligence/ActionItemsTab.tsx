@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ActionItem, Participant } from '../../types/meeting';
 import { actionItemsApi } from '../../api/actionItems';
 import { CheckSquare, Square, Calendar, User as UserIcon, AlertCircle } from 'lucide-react';
@@ -15,6 +15,16 @@ export const ActionItemsTab: React.FC<ActionItemsTabProps> = ({
   const [items, setItems] = useState<ActionItem[]>(initialActionItems);
   const [updatingId, setUpdatingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setItems(initialActionItems);
+  }, [initialActionItems]);
+
+  useEffect(() => {
+    if (!error) return;
+    const timer = setTimeout(() => setError(null), 4000);
+    return () => clearTimeout(timer);
+  }, [error]);
 
   const participantMap = new Map<number, Participant>();
   participants.forEach((p) => participantMap.set(p.id, p));
@@ -76,11 +86,20 @@ export const ActionItemsTab: React.FC<ActionItemsTabProps> = ({
             fontSize: '0.875rem',
             display: 'flex',
             alignItems: 'center',
+            justifyContent: 'space-between',
             gap: '0.5rem',
           }}
         >
-          <AlertCircle size={16} />
-          <span>{error}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <AlertCircle size={16} />
+            <span>{error}</span>
+          </div>
+          <button
+            onClick={() => setError(null)}
+            style={{ background: 'none', border: 'none', color: '#fca5a5', cursor: 'pointer', fontSize: '0.875rem' }}
+          >
+            ×
+          </button>
         </div>
       )}
 

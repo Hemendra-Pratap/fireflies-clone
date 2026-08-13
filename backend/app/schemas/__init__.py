@@ -1,5 +1,4 @@
-"""Pydantic schema package."""
-
+from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse, UserRead
 from app.schemas.health import HealthResponse
 from app.schemas.intelligence import (
     ActionItemRead,
@@ -22,6 +21,7 @@ __all__ = [
     "ActionItemRead",
     "ChapterRead",
     "HealthResponse",
+    "LoginRequest",
     "MeetingCreate",
     "MeetingDetailRead",
     "MeetingIntelligenceRead",
@@ -30,7 +30,10 @@ __all__ = [
     "MeetingStatusRead",
     "MeetingUpdate",
     "ParticipantRead",
+    "RegisterRequest",
     "SummaryRead",
+    "TokenResponse",
     "TranscriptSegmentRead",
+    "UserRead",
 ]
 

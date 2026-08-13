@@ -11,7 +11,7 @@ class MeetingBase(ORMModel):
     source_name: str | None = Field(None, max_length=100, description="Platform or source name (e.g. Zoom, Teams)")
     recorded_at: datetime = Field(..., description="Timestamp when the meeting was recorded")
     duration_ms: int | None = Field(None, ge=0, description="Meeting duration in milliseconds")
-    status: str = Field("completed", max_length=30, description="Meeting processing status")
+    status: str = Field("created", max_length=30, description="Meeting processing status")
 
 
 class MeetingCreate(BaseModel):
@@ -19,7 +19,7 @@ class MeetingCreate(BaseModel):
     source_name: str | None = Field(None, max_length=100, description="Platform or source name")
     recorded_at: datetime = Field(..., description="Timestamp when the meeting was recorded")
     duration_ms: int | None = Field(None, ge=0, description="Meeting duration in milliseconds")
-    status: str = Field("completed", max_length=30, description="Meeting status")
+    status: str = Field("created", max_length=30, description="Meeting status")
 
 
 class MeetingUpdate(BaseModel):
@@ -42,6 +42,7 @@ class MeetingRead(TimestampedModel):
     audio_mime_type: str | None = None
     audio_size_bytes: int | None = None
     error_message: str | None = None
+    user_id: int | None = None
 
 
 class MeetingStatusRead(ORMModel):

@@ -8,7 +8,7 @@ interface ChaptersTabProps {
 
 export const ChaptersTab: React.FC<ChaptersTabProps> = ({ chapters }) => {
   const formatTime = (ms: number | null) => {
-    if (ms === null || ms === undefined) return '00:00';
+    if (ms === null || ms === undefined) return '—';
     const totalSec = Math.floor(ms / 1000);
     const mins = Math.floor(totalSec / 60);
     const secs = totalSec % 60;

@@ -4,6 +4,7 @@ from pathlib import Path
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy.orm import Session
 
+from app.api.deps import get_current_user
 from app.db.session import SessionLocal, get_db
 from app.models.action_item import ActionItem
 from app.models.chapter import Chapter
@@ -11,6 +12,7 @@ from app.models.meeting import MeetingStatus
 from app.models.participant import Participant
 from app.models.summary import Summary
 from app.models.transcript_segment import TranscriptSegment
+from app.models.user import User
 from app.schemas.intelligence import (
     ActionItemRead,
     ChapterRead,
@@ -69,9 +71,10 @@ def _run_ai_analysis_in_background(meeting_id: int) -> None:
 def create_meeting(
     meeting_in: MeetingCreate,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> MeetingRead:
-    """Create a new meeting record in the database."""
-    meeting = meeting_service.create(db, meeting_in)
+    """Create a new meeting record scoped to the authenticated user."""
+    meeting = meeting_service.create(db, meeting_in, user_id=current_user.id)
     return MeetingRead.model_validate(meeting)
 
 
@@ -87,10 +90,11 @@ def list_meetings(
     status: str | None = Query(None, description="Filter by status (e.g. completed)"),
     search: str | None = Query(None, description="Search in title"),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> MeetingListResponse:
-    """List meetings with pagination, optional status filtering, and title search."""
+    """List meetings for the current authenticated user with pagination, status filter, and search."""
     items, total = meeting_service.list(
-        db, page=page, size=size, status=status, search=search
+        db, page=page, size=size, status=status, search=search, user_id=current_user.id
     )
     items_read = [MeetingRead.model_validate(item) for item in items]
     return MeetingListResponse.create(
@@ -110,10 +114,11 @@ def search_meetings(
     size: int = Query(20, ge=1, le=100, description="Items per page"),
     status: str | None = Query(None, description="Filter by status (e.g. completed)"),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> MeetingListResponse:
-    """Search meetings across title and transcript text with pagination."""
+    """Search meetings across title and transcript text for the current user."""
     items, total = meeting_service.search_full_text(
-        db, query_str=q, page=page, size=size, status=status
+        db, query_str=q, page=page, size=size, status=status, user_id=current_user.id
     )
     items_read = [MeetingRead.model_validate(item) for item in items]
     return MeetingListResponse.create(
@@ -130,9 +135,10 @@ def search_meetings(
 def get_meeting(
     meeting_id: int,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> MeetingRead:
-    """Retrieve details of a single meeting by ID."""
-    meeting = meeting_service.get_by_id(db, meeting_id)
+    """Retrieve details of a single meeting owned by current user."""
+    meeting = meeting_service.get_by_id(db, meeting_id, user_id=current_user.id)
     if not meeting:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -151,9 +157,10 @@ def update_meeting(
     meeting_id: int,
     meeting_in: MeetingUpdate,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> MeetingRead:
-    """Perform a partial update on an existing meeting."""
-    meeting = meeting_service.get_by_id(db, meeting_id)
+    """Perform a partial update on an existing meeting owned by current user."""
+    meeting = meeting_service.get_by_id(db, meeting_id, user_id=current_user.id)
     if not meeting:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -172,9 +179,10 @@ def update_meeting(
 def get_meeting_status(
     meeting_id: int,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> MeetingStatusRead:
-    """Retrieve current processing status and optional error message of a meeting."""
-    meeting = meeting_service.get_by_id(db, meeting_id)
+    """Retrieve current processing status of a meeting owned by current user."""
+    meeting = meeting_service.get_by_id(db, meeting_id, user_id=current_user.id)
     if not meeting:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -193,9 +201,10 @@ async def upload_meeting_audio(
     meeting_id: int,
     file: UploadFile = File(..., description="Audio recording file"),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> MeetingRead:
-    """Upload an audio file for a meeting, persist to storage, and update processing status."""
-    meeting = meeting_service.get_by_id(db, meeting_id)
+    """Upload an audio file for a meeting owned by current user."""
+    meeting = meeting_service.get_by_id(db, meeting_id, user_id=current_user.id)
     if not meeting:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -264,9 +273,10 @@ def trigger_transcription(
     meeting_id: int,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> MeetingRead:
-    """Trigger or retry audio transcription for a meeting in the background."""
-    meeting = meeting_service.get_by_id(db, meeting_id)
+    """Trigger or retry audio transcription for a meeting owned by current user."""
+    meeting = meeting_service.get_by_id(db, meeting_id, user_id=current_user.id)
     if not meeting:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -300,9 +310,10 @@ def trigger_ai_analysis(
     meeting_id: int,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> MeetingRead:
-    """Trigger or retry AI analysis for a meeting in the background."""
-    meeting = meeting_service.get_by_id(db, meeting_id)
+    """Trigger or retry AI analysis for a meeting owned by current user."""
+    meeting = meeting_service.get_by_id(db, meeting_id, user_id=current_user.id)
     if not meeting:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -336,9 +347,10 @@ def trigger_ai_analysis(
 def get_meeting_summary(
     meeting_id: int,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> SummaryRead:
-    """Retrieve AI-generated summary for a meeting."""
-    meeting = meeting_service.get_by_id(db, meeting_id)
+    """Retrieve AI-generated summary for a meeting owned by current user."""
+    meeting = meeting_service.get_by_id(db, meeting_id, user_id=current_user.id)
     if not meeting:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
 
@@ -358,9 +370,10 @@ def get_meeting_summary(
 def get_meeting_action_items(
     meeting_id: int,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> list[ActionItemRead]:
-    """Retrieve AI-extracted action items for a meeting."""
-    meeting = meeting_service.get_by_id(db, meeting_id)
+    """Retrieve AI-extracted action items for a meeting owned by current user."""
+    meeting = meeting_service.get_by_id(db, meeting_id, user_id=current_user.id)
     if not meeting:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
 
@@ -377,9 +390,10 @@ def get_meeting_action_items(
 def get_meeting_chapters(
     meeting_id: int,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> list[ChapterRead]:
-    """Retrieve topic chapters for a meeting."""
-    meeting = meeting_service.get_by_id(db, meeting_id)
+    """Retrieve topic chapters for a meeting owned by current user."""
+    meeting = meeting_service.get_by_id(db, meeting_id, user_id=current_user.id)
     if not meeting:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
 
@@ -401,9 +415,10 @@ def get_meeting_chapters(
 def get_meeting_transcript(
     meeting_id: int,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> list[TranscriptSegmentRead]:
-    """Retrieve ordered transcript segments for a meeting."""
-    meeting = meeting_service.get_by_id(db, meeting_id)
+    """Retrieve ordered transcript segments for a meeting owned by current user."""
+    meeting = meeting_service.get_by_id(db, meeting_id, user_id=current_user.id)
     if not meeting:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
 
@@ -425,9 +440,10 @@ def get_meeting_transcript(
 def get_meeting_intelligence(
     meeting_id: int,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> MeetingIntelligenceRead:
-    """Retrieve aggregated meeting intelligence (meeting, summary, action items, chapters, participants, transcript)."""
-    meeting = meeting_service.get_by_id(db, meeting_id)
+    """Retrieve aggregated meeting intelligence for a meeting owned by current user."""
+    meeting = meeting_service.get_by_id(db, meeting_id, user_id=current_user.id)
     if not meeting:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
 
@@ -474,9 +490,10 @@ def get_meeting_intelligence(
 def delete_meeting(
     meeting_id: int,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> None:
-    """Delete a meeting by ID and cascade child records."""
-    meeting = meeting_service.get_by_id(db, meeting_id)
+    """Delete a meeting owned by current user and cascade child records."""
+    meeting = meeting_service.get_by_id(db, meeting_id, user_id=current_user.id)
     if not meeting:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

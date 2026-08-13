@@ -16,23 +16,25 @@ export const ProcessingStateView: React.FC<ProcessingStateViewProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(meeting.error_message);
   const [actionLabel, setActionLabel] = useState<string>('Initializing pipeline...');
   const [isBusy, setIsBusy] = useState(false);
-  const isPollingRef = useRef(false);
+  const isTransitioningRef = useRef(false);
 
   useEffect(() => {
     setCurrentStatus(meeting.status);
     setErrorMessage(meeting.error_message);
-  }, [meeting]);
+  }, [meeting.status, meeting.error_message]);
 
   useEffect(() => {
-    let timer: any = null;
+    let timerId: ReturnType<typeof setTimeout> | null = null;
+    let isCancelled = false;
 
-    const runStateTransition = async () => {
-      if (isPollingRef.current) return;
-      isPollingRef.current = true;
+    const pollAndTransition = async () => {
+      if (isTransitioningRef.current || isCancelled) return;
+      isTransitioningRef.current = true;
 
       try {
-        // Fetch latest status from API
         const latestStatusData = await meetingsApi.getStatus(meeting.id);
+        if (isCancelled) return;
+
         const status = latestStatusData.status;
         setCurrentStatus(status as any);
         setErrorMessage(latestStatusData.error_message);
@@ -41,14 +43,18 @@ export const ProcessingStateView: React.FC<ProcessingStateViewProps> = ({
           setActionLabel('Triggering Speech-to-Text Transcription...');
           setIsBusy(true);
           const updated = await meetingsApi.triggerTranscription(meeting.id);
-          setCurrentStatus(updated.status);
-          onStatusUpdated(updated);
+          if (!isCancelled) {
+            setCurrentStatus(updated.status);
+            onStatusUpdated(updated);
+          }
         } else if (status === 'transcribed') {
           setActionLabel('Triggering Gemini AI Meeting Analysis...');
           setIsBusy(true);
           const updated = await meetingsApi.triggerAnalysis(meeting.id);
-          setCurrentStatus(updated.status);
-          onStatusUpdated(updated);
+          if (!isCancelled) {
+            setCurrentStatus(updated.status);
+            onStatusUpdated(updated);
+          }
         } else if (status === 'transcribing') {
           setActionLabel('Speech-to-Text model transcribing audio recording...');
           setIsBusy(true);
@@ -58,28 +64,30 @@ export const ProcessingStateView: React.FC<ProcessingStateViewProps> = ({
         } else if (status === 'completed') {
           setActionLabel('Processing complete!');
           setIsBusy(false);
-          const finalMeeting = await meetingsApi.getMeeting(meeting.id);
-          onStatusUpdated(finalMeeting);
-          return; // Stop polling
+          onStatusUpdated(meeting);
+          return;
         } else if (status === 'failed') {
           setActionLabel('Processing failed');
           setIsBusy(false);
-          return; // Stop polling
+          return;
         }
       } catch (err: any) {
         console.error('Processing state workflow error:', err);
       } finally {
-        isPollingRef.current = false;
+        isTransitioningRef.current = false;
+        if (!isCancelled && ['created', 'uploaded', 'transcribing', 'transcribed', 'analyzing'].includes(currentStatus)) {
+          timerId = setTimeout(pollAndTransition, 3000);
+        }
       }
     };
 
-    if (['uploaded', 'transcribing', 'transcribed', 'analyzing'].includes(currentStatus)) {
-      runStateTransition();
-      timer = setInterval(runStateTransition, 3000); // Responsible 3-second poll interval
+    if (['created', 'uploaded', 'transcribing', 'transcribed', 'analyzing'].includes(currentStatus)) {
+      pollAndTransition();
     }
 
     return () => {
-      if (timer) clearInterval(timer);
+      isCancelled = true;
+      if (timerId) clearTimeout(timerId);
     };
   }, [meeting.id, currentStatus]);
 
@@ -87,12 +95,28 @@ export const ProcessingStateView: React.FC<ProcessingStateViewProps> = ({
     setIsBusy(true);
     setErrorMessage(null);
     try {
-      if (currentStatus === 'failed' || currentStatus === 'uploaded') {
-        const updated = await meetingsApi.triggerTranscription(meeting.id);
+      let transcriptExists = false;
+      if (currentStatus === 'transcribed' || currentStatus === 'analyzing') {
+        transcriptExists = true;
+      } else {
+        try {
+          const segments = await meetingsApi.getTranscript(meeting.id);
+          if (segments && segments.length > 0) {
+            transcriptExists = true;
+          }
+        } catch {
+          transcriptExists = false;
+        }
+      }
+
+      if (transcriptExists) {
+        setActionLabel('Retrying Gemini AI Meeting Analysis...');
+        const updated = await meetingsApi.triggerAnalysis(meeting.id);
         setCurrentStatus(updated.status);
         onStatusUpdated(updated);
-      } else if (currentStatus === 'transcribed') {
-        const updated = await meetingsApi.triggerAnalysis(meeting.id);
+      } else {
+        setActionLabel('Retrying Speech-to-Text Transcription...');
+        const updated = await meetingsApi.triggerTranscription(meeting.id);
         setCurrentStatus(updated.status);
         onStatusUpdated(updated);
       }

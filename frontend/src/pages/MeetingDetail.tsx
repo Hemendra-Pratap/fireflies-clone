@@ -19,6 +19,9 @@ export const MeetingDetail: React.FC<MeetingDetailProps> = ({ meetingId, onBack 
   const [activeTab, setActiveTab] = useState<'summary' | 'action_items' | 'chapters' | 'transcript'>('summary');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const fetchIntelligence = async () => {
     setLoading(true);
@@ -39,13 +42,15 @@ export const MeetingDetail: React.FC<MeetingDetailProps> = ({ meetingId, onBack 
   }, [meetingId]);
 
   const handleDelete = async () => {
-    if (window.confirm('Are you sure you want to delete this meeting and all associated data?')) {
-      try {
-        await meetingsApi.deleteMeeting(meetingId);
-        onBack();
-      } catch (err: any) {
-        alert('Failed to delete meeting');
-      }
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await meetingsApi.deleteMeeting(meetingId);
+      onBack();
+    } catch (err: any) {
+      const msg = err.response?.data?.detail || err.message || 'Failed to delete meeting';
+      setDeleteError(msg);
+      setDeleting(false);
     }
   };
 
@@ -120,10 +125,29 @@ export const MeetingDetail: React.FC<MeetingDetailProps> = ({ meetingId, onBack 
           <ArrowLeft size={16} /> Back to Dashboard
         </button>
 
-        <button className="btn btn-secondary" onClick={handleDelete} style={{ color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.3)' }}>
-          <Trash2 size={16} /> Delete Meeting
-        </button>
+        {!showDeleteConfirm ? (
+          <button className="btn btn-secondary" onClick={() => setShowDeleteConfirm(true)} style={{ color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.3)' }}>
+            <Trash2 size={16} /> Delete Meeting
+          </button>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span style={{ fontSize: '0.875rem', color: '#fca5a5', fontWeight: 600 }}>Delete meeting?</span>
+            <button className="btn btn-secondary" onClick={() => { setShowDeleteConfirm(false); setDeleteError(null); }} disabled={deleting} style={{ padding: '0.375rem 0.75rem', fontSize: '0.8125rem' }}>
+              Cancel
+            </button>
+            <button className="btn btn-primary" onClick={handleDelete} disabled={deleting} style={{ backgroundColor: '#ef4444', borderColor: '#ef4444', padding: '0.375rem 0.75rem', fontSize: '0.8125rem' }}>
+              {deleting ? <Loader2 size={14} className="animate-spin" /> : 'Confirm Delete'}
+            </button>
+          </div>
+        )}
       </div>
+
+      {deleteError && (
+        <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#fca5a5', padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '1.5rem', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <AlertCircle size={16} />
+          <span>{deleteError}</span>
+        </div>
+      )}
 
       {/* Meeting Title Banner */}
       <div className="card" style={{ marginBottom: '1.5rem', padding: '1.75rem' }}>
@@ -161,46 +185,49 @@ export const MeetingDetail: React.FC<MeetingDetailProps> = ({ meetingId, onBack 
         />
       )}
 
-      {/* Navigation Tabs */}
-      <div style={{ display: 'flex', gap: '0.5rem', borderBottom: '1px solid var(--border-color)', marginBottom: '1.5rem', paddingBottom: '0.5rem' }}>
-        <button
-          className={`nav-item ${activeTab === 'summary' ? 'active' : ''}`}
-          onClick={() => setActiveTab('summary')}
-          style={{ width: 'auto', padding: '0.625rem 1.25rem' }}
-        >
-          <Sparkles size={16} /> Summary
-        </button>
+      {/* Navigation Tabs and Panels (Shown only when completed) */}
+      {isCompleted && (
+        <>
+          <div style={{ display: 'flex', gap: '0.5rem', borderBottom: '1px solid var(--border-color)', marginBottom: '1.5rem', paddingBottom: '0.5rem' }}>
+            <button
+              className={`nav-item ${activeTab === 'summary' ? 'active' : ''}`}
+              onClick={() => setActiveTab('summary')}
+              style={{ width: 'auto', padding: '0.625rem 1.25rem' }}
+            >
+              <Sparkles size={16} /> Summary
+            </button>
 
-        <button
-          className={`nav-item ${activeTab === 'action_items' ? 'active' : ''}`}
-          onClick={() => setActiveTab('action_items')}
-          style={{ width: 'auto', padding: '0.625rem 1.25rem' }}
-        >
-          <CheckSquare size={16} /> Action Items ({action_items.length})
-        </button>
+            <button
+              className={`nav-item ${activeTab === 'action_items' ? 'active' : ''}`}
+              onClick={() => setActiveTab('action_items')}
+              style={{ width: 'auto', padding: '0.625rem 1.25rem' }}
+            >
+              <CheckSquare size={16} /> Action Items ({action_items.length})
+            </button>
 
-        <button
-          className={`nav-item ${activeTab === 'chapters' ? 'active' : ''}`}
-          onClick={() => setActiveTab('chapters')}
-          style={{ width: 'auto', padding: '0.625rem 1.25rem' }}
-        >
-          <Bookmark size={16} /> Chapters ({chapters.length})
-        </button>
+            <button
+              className={`nav-item ${activeTab === 'chapters' ? 'active' : ''}`}
+              onClick={() => setActiveTab('chapters')}
+              style={{ width: 'auto', padding: '0.625rem 1.25rem' }}
+            >
+              <Bookmark size={16} /> Chapters ({chapters.length})
+            </button>
 
-        <button
-          className={`nav-item ${activeTab === 'transcript' ? 'active' : ''}`}
-          onClick={() => setActiveTab('transcript')}
-          style={{ width: 'auto', padding: '0.625rem 1.25rem' }}
-        >
-          <FileText size={16} /> Transcript ({transcript_segments.length})
-        </button>
-      </div>
+            <button
+              className={`nav-item ${activeTab === 'transcript' ? 'active' : ''}`}
+              onClick={() => setActiveTab('transcript')}
+              style={{ width: 'auto', padding: '0.625rem 1.25rem' }}
+            >
+              <FileText size={16} /> Transcript ({transcript_segments.length})
+            </button>
+          </div>
 
-      {/* Tab Panels */}
-      {activeTab === 'summary' && <SummaryTab summary={summary} />}
-      {activeTab === 'action_items' && <ActionItemsTab actionItems={action_items} participants={participants} />}
-      {activeTab === 'chapters' && <ChaptersTab chapters={chapters} />}
-      {activeTab === 'transcript' && <TranscriptTab segments={transcript_segments} participants={participants} />}
+          {activeTab === 'summary' && <SummaryTab summary={summary} />}
+          {activeTab === 'action_items' && <ActionItemsTab actionItems={action_items} participants={participants} />}
+          {activeTab === 'chapters' && <ChaptersTab chapters={chapters} />}
+          {activeTab === 'transcript' && <TranscriptTab segments={transcript_segments} participants={participants} />}
+        </>
+      )}
     </div>
   );
 };

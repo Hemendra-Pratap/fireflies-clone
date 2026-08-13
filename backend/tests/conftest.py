@@ -61,8 +61,44 @@ def db_session(engine):
 
 
 @pytest.fixture(scope="function")
-def client(db_session):
-    """FastAPI TestClient backed by the isolated test database session."""
+def test_user(db_session):
+    """Create a default test user record."""
+    from app.models.user import User
+
+    user = User(
+        email="testuser@example.com",
+        password_hash="$argon2id$v=19$m=65536,t=3,p=4$dummy$dummy",
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    return user
+
+
+@pytest.fixture(scope="function")
+def client(db_session, test_user):
+    """FastAPI TestClient authenticated as test_user by default."""
+    from app.api.deps import get_current_user
+
+    def _override_get_db():
+        try:
+            yield db_session
+        finally:
+            pass
+
+    def _override_get_current_user():
+        return test_user
+
+    app.dependency_overrides[get_db] = _override_get_db
+    app.dependency_overrides[get_current_user] = _override_get_current_user
+    with TestClient(app) as c:
+        yield c
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture(scope="function")
+def unauth_client(db_session):
+    """Unauthenticated FastAPI TestClient without current_user override."""
 
     def _override_get_db():
         try:

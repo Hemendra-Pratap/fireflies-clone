@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { meetingsApi } from '../../api/meetings';
 import { Meeting } from '../../types/meeting';
 import { X, UploadCloud, FileAudio, AlertCircle, Loader2 } from 'lucide-react';
@@ -9,6 +9,11 @@ interface CreateMeetingModalProps {
   onSuccess: (meeting: Meeting) => void;
 }
 
+const toDatetimeLocal = (d: Date) => {
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+
 export const CreateMeetingModal: React.FC<CreateMeetingModalProps> = ({
   isOpen,
   onClose,
@@ -16,9 +21,21 @@ export const CreateMeetingModal: React.FC<CreateMeetingModalProps> = ({
 }) => {
   const [title, setTitle] = useState('');
   const [file, setFile] = useState<File | null>(null);
+  const [recordedAt, setRecordedAt] = useState<string>(toDatetimeLocal(new Date()));
   const [loading, setLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setTitle('');
+      setFile(null);
+      setRecordedAt(toDatetimeLocal(new Date()));
+      setLoading(false);
+      setUploadProgress(0);
+      setError(null);
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -59,13 +76,15 @@ export const CreateMeetingModal: React.FC<CreateMeetingModalProps> = ({
     setError(null);
     setUploadProgress(0);
 
+    let createdMeetingId: number | null = null;
     try {
       // 1. Create Meeting
       const newMeeting = await meetingsApi.createMeeting({
         title: title.trim(),
         source_name: 'Web Upload',
-        recorded_at: new Date().toISOString(),
+        recorded_at: recordedAt ? new Date(recordedAt).toISOString() : new Date().toISOString(),
       });
+      createdMeetingId = newMeeting.id;
 
       // 2. Upload Audio File with Progress Tracking
       const updatedMeeting = await meetingsApi.uploadAudio(
@@ -78,6 +97,13 @@ export const CreateMeetingModal: React.FC<CreateMeetingModalProps> = ({
       onSuccess(updatedMeeting);
       onClose();
     } catch (err: any) {
+      if (createdMeetingId !== null) {
+        try {
+          await meetingsApi.deleteMeeting(createdMeetingId);
+        } catch {
+          // Preserve original upload error if deletion fails
+        }
+      }
       const msg = err.response?.data?.detail || err.message || 'Failed to create meeting or upload audio.';
       setError(msg);
     } finally {
@@ -130,6 +156,20 @@ export const CreateMeetingModal: React.FC<CreateMeetingModalProps> = ({
               placeholder="e.g. Product Strategy & Architecture Sync"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
+              disabled={loading}
+            />
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, marginBottom: '0.5rem', color: 'var(--text-main)' }}>
+              Date & Time Recorded
+            </label>
+            <input
+              type="datetime-local"
+              className="input-search"
+              style={{ width: '100%', paddingLeft: '1rem', colorScheme: 'dark' }}
+              value={recordedAt}
+              onChange={(e) => setRecordedAt(e.target.value)}
               disabled={loading}
             />
           </div>

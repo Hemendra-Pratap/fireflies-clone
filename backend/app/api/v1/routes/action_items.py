@@ -2,8 +2,11 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.api.deps import get_current_user
 from app.db.session import get_db
 from app.models.action_item import ActionItem
+from app.models.meeting import Meeting
+from app.models.user import User
 from app.schemas.intelligence import ActionItemRead, ActionItemUpdate
 
 router = APIRouter()
@@ -19,9 +22,15 @@ def update_action_item(
     action_item_id: int,
     action_item_in: ActionItemUpdate,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> ActionItemRead:
-    """Update action item status (is_completed) and metadata."""
-    item = db.query(ActionItem).filter(ActionItem.id == action_item_id).first()
+    """Update action item status (is_completed) and metadata for an action item owned by current user."""
+    item = (
+        db.query(ActionItem)
+        .join(Meeting, ActionItem.meeting_id == Meeting.id)
+        .filter(ActionItem.id == action_item_id, Meeting.user_id == current_user.id)
+        .first()
+    )
     if not item:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

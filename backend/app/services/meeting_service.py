@@ -10,17 +10,25 @@ from app.schemas.meeting import MeetingCreate, MeetingUpdate
 class MeetingService:
     """Service layer handling database business logic for Meetings."""
 
-    def create(self, db: Session, obj_in: MeetingCreate) -> Meeting:
+    def create(self, db: Session, obj_in: MeetingCreate, user_id: int | None = None) -> Meeting:
         """Create and persist a new Meeting record."""
-        meeting = Meeting(**obj_in.model_dump())
+        data = obj_in.model_dump()
+        # Always remove any user_id the schema may have received; ownership is server-controlled.
+        data.pop("user_id", None)
+        if user_id is not None:
+            data["user_id"] = user_id
+        meeting = Meeting(**data)
         db.add(meeting)
         db.commit()
         db.refresh(meeting)
         return meeting
 
-    def get_by_id(self, db: Session, meeting_id: int) -> Meeting | None:
-        """Fetch a single Meeting by ID."""
-        return db.query(Meeting).filter(Meeting.id == meeting_id).first()
+    def get_by_id(self, db: Session, meeting_id: int, user_id: int | None = None) -> Meeting | None:
+        """Fetch a single Meeting by ID, optionally scoped by user_id."""
+        query = db.query(Meeting).filter(Meeting.id == meeting_id)
+        if user_id is not None:
+            query = query.filter(Meeting.user_id == user_id)
+        return query.first()
 
     def list(
         self,
@@ -30,10 +38,14 @@ class MeetingService:
         size: int = 20,
         status: str | None = None,
         search: str | None = None,
+        user_id: int | None = None,
     ) -> tuple[list[Meeting], int]:
-        """List meetings with pagination, optional status filtering, and title search."""
+        """List meetings with pagination, optional status filtering, title search, and user_id scoping."""
         skip = (page - 1) * size
         query = db.query(Meeting)
+
+        if user_id is not None:
+            query = query.filter(Meeting.user_id == user_id)
 
         if status:
             query = query.filter(Meeting.status == status)
@@ -59,8 +71,9 @@ class MeetingService:
         page: int = 1,
         size: int = 20,
         status: str | None = None,
+        user_id: int | None = None,
     ) -> tuple[list[Meeting], int]:
-        """Search meetings across title and transcript text with pagination."""
+        """Search meetings across title and transcript text with pagination and optional user_id scoping."""
         from app.models.transcript_segment import TranscriptSegment
 
         skip = (page - 1) * size
@@ -68,6 +81,9 @@ class MeetingService:
 
         # Outer join to TranscriptSegment to match title OR segment text
         base_query = db.query(Meeting).outerjoin(TranscriptSegment)
+
+        if user_id is not None:
+            base_query = base_query.filter(Meeting.user_id == user_id)
 
         if status:
             base_query = base_query.filter(Meeting.status == status)

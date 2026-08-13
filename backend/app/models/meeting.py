@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import BigInteger, DateTime, Index, Integer, String, Text
+from sqlalchemy import BigInteger, DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -32,8 +32,8 @@ class Meeting(IntegerPrimaryKeyMixin, TimestampMixin, Base):
     status: Mapped[str] = mapped_column(
         String(30),
         nullable=False,
-        default="completed",
-        server_default="completed",
+        default="created",
+        server_default="created",
         index=True,
     )
     audio_file_path: Mapped[str | None] = mapped_column(String(512), nullable=True)
@@ -41,6 +41,14 @@ class Meeting(IntegerPrimaryKeyMixin, TimestampMixin, Base):
     audio_mime_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
     audio_size_bytes: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    user_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
+    user = relationship("User", backref="meetings")
 
     participants = relationship(
         "Participant",

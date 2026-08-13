@@ -19,7 +19,7 @@ def test_cors_preflight_headers(client: TestClient) -> None:
     assert response.headers.get("access-control-allow-origin") == "http://localhost:5173"
 
 
-def test_search_by_title_and_transcript(client: TestClient, db_session: Session) -> None:
+def test_search_by_title_and_transcript(client: TestClient, db_session: Session, test_user) -> None:
     """Test full-text search across meeting titles and transcript segment text."""
     now = datetime.now(timezone.utc)
     # Meeting 1: title match
@@ -27,6 +27,7 @@ def test_search_by_title_and_transcript(client: TestClient, db_session: Session)
         title="Architecture Sync with Product",
         recorded_at=now,
         status=MeetingStatus.COMPLETED,
+        user_id=test_user.id,
     )
     db_session.add(m1)
     db_session.flush()
@@ -45,6 +46,7 @@ def test_search_by_title_and_transcript(client: TestClient, db_session: Session)
         title="Weekly Status",
         recorded_at=now,
         status=MeetingStatus.COMPLETED,
+        user_id=test_user.id,
     )
     db_session.add(m2)
     db_session.flush()
@@ -81,12 +83,13 @@ def test_search_by_title_and_transcript(client: TestClient, db_session: Session)
     assert len(data3["items"]) == 0
 
 
-def test_action_item_completion_toggle(client: TestClient, db_session: Session) -> None:
+def test_action_item_completion_toggle(client: TestClient, db_session: Session, test_user) -> None:
     """Test PATCH /api/v1/action-items/{id} completion status and timestamp tracking."""
     m = Meeting(
         title="Action Item Test",
         recorded_at=datetime.now(timezone.utc),
         status=MeetingStatus.COMPLETED,
+        user_id=test_user.id,
     )
     db_session.add(m)
     db_session.flush()

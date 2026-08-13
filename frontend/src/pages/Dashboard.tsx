@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { meetingsApi } from '../api/meetings';
 import { Meeting } from '../types/meeting';
 import { MeetingCard } from '../components/meetings/MeetingCard';
@@ -19,17 +19,31 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [page] = useState(1);
+  const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState(searchQuery);
 
-  const fetchMeetings = async () => {
-    setLoading(true);
+  // Debounce search query changes
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Reset page to 1 when search or status filter changes
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearchQuery, statusFilter]);
+
+  const fetchMeetings = async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     setError(null);
     try {
       const filter = statusFilter === 'all' ? undefined : statusFilter;
       let res;
-      if (searchQuery.trim()) {
-        res = await meetingsApi.searchMeetings(searchQuery.trim(), page, 20, filter);
+      if (debouncedSearchQuery.trim()) {
+        res = await meetingsApi.searchMeetings(debouncedSearchQuery.trim(), page, 20, filter);
       } else {
         res = await meetingsApi.listMeetings(page, 20, filter);
       }
@@ -39,13 +53,45 @@ export const Dashboard: React.FC<DashboardProps> = ({
       const msg = err.response?.data?.detail || err.message || 'Failed to fetch meetings.';
       setError(msg);
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchMeetings();
-  }, [searchQuery, statusFilter, page]);
+    fetchMeetings(true);
+  }, [debouncedSearchQuery, statusFilter, page]);
+
+  // Gentle polling only when there are in-progress processing meetings
+  const hasInProgressRef = useRef(false);
+  hasInProgressRef.current = meetings.some((m) =>
+    ['created', 'uploaded', 'transcribing', 'transcribed', 'analyzing'].includes(m.status)
+  );
+
+  useEffect(() => {
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+    if (hasInProgressRef.current) {
+      intervalId = setInterval(() => {
+        fetchMeetings(false);
+      }, 5000);
+    }
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [meetings]);
+
+  const pageSize = 20;
+  const totalPages = Math.ceil(total / pageSize) || 1;
+
+  const filterStatuses = [
+    'all',
+    'created',
+    'uploaded',
+    'transcribing',
+    'transcribed',
+    'analyzing',
+    'completed',
+    'failed',
+  ];
 
   return (
     <div className="page-container">
@@ -83,10 +129,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
       {/* Filter Toolbar */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
           <Filter size={16} style={{ color: 'var(--text-muted)' }} />
           <span style={{ fontSize: '0.875rem', color: 'var(--text-muted)', fontWeight: 500 }}>Filter Status:</span>
-          {['all', 'completed', 'transcribed', 'uploaded', 'failed'].map((st) => (
+          {filterStatuses.map((st) => (
             <button
               key={st}
               onClick={() => setStatusFilter(st)}
@@ -140,22 +186,49 @@ export const Dashboard: React.FC<DashboardProps> = ({
           <div>Loading meeting intelligence records...</div>
         </div>
       ) : meetings.length > 0 ? (
-        /* Meeting Cards Grid */
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
-            gap: '1.5rem',
-          }}
-        >
-          {meetings.map((meeting) => (
-            <MeetingCard
-              key={meeting.id}
-              meeting={meeting}
-              onClick={() => onSelectMeeting(meeting.id)}
-            />
-          ))}
-        </div>
+        <>
+          {/* Meeting Cards Grid */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
+              gap: '1.5rem',
+            }}
+          >
+            {meetings.map((meeting) => (
+              <MeetingCard
+                key={meeting.id}
+                meeting={meeting}
+                onClick={() => onSelectMeeting(meeting.id)}
+              />
+            ))}
+          </div>
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', marginTop: '2rem' }}>
+              <button
+                className="btn btn-secondary"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1 || loading}
+                style={{ fontSize: '0.875rem' }}
+              >
+                Previous
+              </button>
+              <span style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>
+                Page {page} of {totalPages}
+              </span>
+              <button
+                className="btn btn-secondary"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages || loading}
+                style={{ fontSize: '0.875rem' }}
+              >
+                Next
+              </button>
+            </div>
+          )}
+        </>
       ) : (
         /* Empty State */
         <div
@@ -185,8 +258,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
           <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#fff' }}>No Meetings Found</h3>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', maxWidth: '400px' }}>
-            {searchQuery
-              ? `No meetings match '${searchQuery}'. Try clearing search or changing filters.`
+            {debouncedSearchQuery
+              ? `No meetings match '${debouncedSearchQuery}'. Try clearing search or changing filters.`
               : 'Get started by creating a new meeting and uploading an audio recording.'}
           </p>
           <button className="btn btn-primary" onClick={onOpenUploadModal} style={{ marginTop: '0.5rem' }}>
