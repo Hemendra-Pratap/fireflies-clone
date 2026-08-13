@@ -45,7 +45,7 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ chapters }) => {
               >
                 {chapter.sequence_number}
               </span>
-              <h4 style={{ fontSize: '1rem', fontWeight: 600, color: '#fff' }}>{chapter.title}</h4>
+              <h4 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-heading)' }}>{chapter.title}</h4>
             </div>
 
             <div

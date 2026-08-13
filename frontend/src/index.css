@@ -1,8 +1,11 @@
-:root {
+:root, [data-theme="dark"] {
   --bg-dark: #0b0f19;
   --bg-card: #131c2e;
   --bg-card-hover: #1b2742;
   --bg-input: #1a243b;
+  --bg-sidebar: #0d1424;
+  --bg-header: rgba(13, 20, 36, 0.85);
+  --bg-modal: #111827;
   --border-color: rgba(255, 255, 255, 0.08);
   --border-highlight: rgba(99, 102, 241, 0.3);
   
@@ -14,6 +17,7 @@
   --accent-cyan: #06b6d4;
   
   --text-main: #f3f4f6;
+  --text-heading: #ffffff;
   --text-muted: #9ca3af;
   --text-dim: #6b7280;
 
@@ -30,10 +34,47 @@
   --font-mono: 'JetBrains Mono', monospace;
 }
 
+[data-theme="light"] {
+  --bg-dark: #f8fafc;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f1f5f9;
+  --bg-input: #f1f5f9;
+  --bg-sidebar: #ffffff;
+  --bg-header: rgba(255, 255, 255, 0.9);
+  --bg-modal: #ffffff;
+  --border-color: #e2e8f0;
+  --border-highlight: rgba(99, 102, 241, 0.4);
+  
+  --primary: #4f46e5;
+  --primary-hover: #4338ca;
+  --primary-light: rgba(79, 70, 229, 0.1);
+  
+  --accent-purple: #7c3aed;
+  --accent-cyan: #0891b2;
+  
+  --text-main: #1e293b;
+  --text-heading: #0f172a;
+  --text-muted: #64748b;
+  --text-dim: #94a3b8;
+
+  --badge-completed: #059669;
+  --badge-completed-bg: rgba(16, 185, 129, 0.12);
+  --badge-processing: #d97706;
+  --badge-processing-bg: rgba(245, 158, 11, 0.12);
+  --badge-failed: #dc2626;
+  --badge-failed-bg: rgba(239, 68, 68, 0.12);
+  --badge-created: #2563eb;
+  --badge-created-bg: rgba(59, 130, 246, 0.12);
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+}
+
+html, body {
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 body {
@@ -54,27 +95,29 @@ body {
   background: var(--bg-dark);
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--border-color);
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.3);
+  background: var(--text-dim);
 }
 
 /* App Layout */
 .app-container {
   display: flex;
   min-height: 100vh;
+  background-color: var(--bg-dark);
 }
 
 .sidebar {
   width: 260px;
-  background-color: #0d1424;
+  background-color: var(--bg-sidebar);
   border-right: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
   padding: 1.5rem 1rem;
   flex-shrink: 0;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
 .sidebar-logo {
@@ -83,7 +126,7 @@ body {
   gap: 0.75rem;
   font-size: 1.25rem;
   font-weight: 700;
-  color: #fff;
+  color: var(--text-heading);
   padding: 0 0.5rem 1.5rem 0.5rem;
   border-bottom: 1px solid var(--border-color);
   margin-bottom: 1.5rem;
@@ -119,7 +162,7 @@ body {
 
 .nav-item:hover, .nav-item.active {
   background-color: var(--primary-light);
-  color: #fff;
+  color: var(--primary);
 }
 
 .main-content {
@@ -137,11 +180,12 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 0 2rem;
-  background: rgba(13, 20, 36, 0.8);
+  background: var(--bg-header);
   backdrop-filter: blur(8px);
   position: sticky;
   top: 0;
   z-index: 10;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
 .page-container {
@@ -151,17 +195,38 @@ body {
   width: 100%;
 }
 
+/* Theme Toggle Button */
+.theme-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  background-color: var(--bg-input);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.theme-toggle-btn:hover {
+  background-color: var(--bg-card-hover);
+  color: var(--primary);
+  border-color: var(--border-highlight);
+}
+
 /* Cards & Buttons */
 .card {
   background-color: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: 12px;
   padding: 1.5rem;
-  transition: transform 0.2s ease, border-color 0.2s ease;
+  transition: transform 0.2s ease, border-color 0.2s ease, background-color 0.3s ease;
 }
 
 .card:hover {
-  border-color: rgba(255, 255, 255, 0.15);
+  border-color: var(--border-highlight);
 }
 
 .btn {
@@ -197,7 +262,7 @@ body {
 
 .btn-secondary:hover {
   background-color: var(--bg-card-hover);
-  border-color: rgba(255, 255, 255, 0.2);
+  border-color: var(--border-highlight);
 }
 
 /* Badges */
@@ -242,11 +307,11 @@ body {
   border: 1px solid var(--border-color);
   border-radius: 8px;
   padding: 0.5rem 1rem 0.5rem 2.5rem;
-  color: #fff;
+  color: var(--text-main);
   font-size: 0.875rem;
   outline: none;
   width: 320px;
-  transition: border-color 0.2s ease;
+  transition: border-color 0.2s ease, background-color 0.3s ease;
 }
 
 .input-search:focus {
@@ -267,11 +332,12 @@ body {
 }
 
 .modal-content {
-  background-color: #111827;
+  background-color: var(--bg-modal);
   border: 1px solid var(--border-color);
   border-radius: 16px;
   width: 100%;
   max-width: 560px;
   padding: 2rem;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+  color: var(--text-main);
 }

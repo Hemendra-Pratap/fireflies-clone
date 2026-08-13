@@ -11,6 +11,7 @@ import { WorkspaceMembersModal } from './components/workspace/WorkspaceMembersMo
 import { AuthModal } from './components/auth/AuthModal';
 import { authApi, User } from './api/auth';
 import { WorkspaceProvider, useWorkspace } from './context/WorkspaceContext';
+import { ThemeProvider } from './context/ThemeContext';
 import { CalendarOAuthCallback } from './components/calendar/CalendarOAuthCallback';
 
 interface AuthenticatedAppProps {
@@ -205,13 +206,15 @@ export const App: React.FC = () => {
   }
 
   return (
-    <WorkspaceProvider user={user}>
-      <AuthenticatedApp
-        user={user}
-        onUserUpdated={(updatedUser) => setUser(updatedUser)}
-        onLogout={handleLogout}
-      />
-    </WorkspaceProvider>
+    <ThemeProvider>
+      <WorkspaceProvider user={user}>
+        <AuthenticatedApp
+          user={user}
+          onUserUpdated={(updatedUser) => setUser(updatedUser)}
+          onLogout={handleLogout}
+        />
+      </WorkspaceProvider>
+    </ThemeProvider>
   );
 };
 

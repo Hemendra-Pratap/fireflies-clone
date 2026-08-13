@@ -158,7 +158,7 @@ export const MeetingDetail: React.FC<MeetingDetailProps> = ({ meetingId, onBack 
       <div className="card" style={{ marginBottom: '1.5rem', padding: '1.75rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '1rem' }}>
           <div>
-            <h1 style={{ fontSize: '1.625rem', fontWeight: 800, color: '#fff', lineHeight: 1.2, marginBottom: '0.5rem' }}>
+            <h1 style={{ fontSize: '1.625rem', fontWeight: 800, color: 'var(--text-heading)', lineHeight: 1.2, marginBottom: '0.5rem' }}>
               {meeting.title}
             </h1>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.25rem', fontSize: '0.875rem', color: 'var(--text-muted)' }}>

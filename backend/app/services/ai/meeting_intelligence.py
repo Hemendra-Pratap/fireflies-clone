@@ -84,6 +84,7 @@ class MeetingIntelligenceService:
 
         valid_source_statuses = {
             MeetingStatus.TRANSCRIBED,
+            MeetingStatus.ANALYZING,
             MeetingStatus.COMPLETED,
             MeetingStatus.FAILED,
         }

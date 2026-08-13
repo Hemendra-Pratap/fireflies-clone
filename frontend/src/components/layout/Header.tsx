@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Search, Plus, LogOut, X } from 'lucide-react';
+import { Search, Plus, LogOut, X, Sun, Moon } from 'lucide-react';
 import { WorkspaceSelector } from './WorkspaceSelector';
 import { SearchDropdown } from '../search/SearchDropdown';
 import { NotificationDropdown } from '../notifications/NotificationDropdown';
 import { useWorkspace } from '../../context/WorkspaceContext';
+import { useTheme } from '../../context/ThemeContext';
 
 interface HeaderProps {
   searchQuery: string;
@@ -27,6 +28,7 @@ export const Header: React.FC<HeaderProps> = ({
   onLogout,
 }) => {
   const { activeWorkspace } = useWorkspace();
+  const { theme, toggleTheme } = useTheme();
   const [isDropdownOpen, setIsDropdownOpen] = useState(true);
 
   return (
@@ -101,6 +103,17 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        {/* Theme Switch Toggle Button */}
+        <button
+          id="theme-toggle-btn"
+          className="theme-toggle-btn"
+          onClick={toggleTheme}
+          title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+          aria-label={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+        >
+          {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+        </button>
+
         {/* Notification Bell Dropdown */}
         <NotificationDropdown
           workspaceId={activeWorkspace?.id}

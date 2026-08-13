@@ -49,7 +49,7 @@ export const MeetingCard: React.FC<MeetingCardProps> = ({ meeting, onClick }) =>
           style={{
             fontSize: '1.125rem',
             fontWeight: 600,
-            color: '#fff',
+            color: 'var(--text-heading)',
             lineHeight: 1.3,
             paddingRight: '1rem',
           }}

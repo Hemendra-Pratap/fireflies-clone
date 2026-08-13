@@ -64,7 +64,8 @@ class Settings:
             raise RuntimeError("Production configuration error: DATABASE_URL must be configured to PostgreSQL in production mode.")
 
         if self.transcription_provider == "gemini" and not self.gemini_api_key:
-            raise RuntimeError("Production configuration error: GEMINI_API_KEY is required when TRANSCRIPTION_PROVIDER is set to 'gemini'.")
+            import logging
+            logging.getLogger(__name__).warning("GEMINI_API_KEY is unconfigured; audio transcription and AI analysis require GEMINI_API_KEY.")
 
         if "*" in self.cors_origins:
             raise RuntimeError("Production security violation: Wildcard '*' in CORS_ORIGINS is not allowed in production mode.")

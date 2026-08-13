@@ -88,7 +88,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab, use
               style={{
                 fontWeight: 600,
                 fontSize: '0.875rem',
-                color: '#fff',
+                color: 'var(--text-heading)',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',

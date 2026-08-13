@@ -17,11 +17,12 @@ def get_ai_provider(
     mock_raise_error: bool = False,
 ) -> MeetingIntelligenceProvider:
     """Factory returning configured AI Meeting Intelligence Provider."""
-    name = (provider_name or os.getenv("AI_PROVIDER", "mock")).lower()
+    raw_name = (provider_name or os.getenv("AI_PROVIDER", "") or settings.transcription_provider).lower()
     api_key = settings.gemini_api_key or os.getenv("GEMINI_API_KEY")
 
-    if name == "gemini" and api_key:
-        return GeminiMeetingIntelligenceProvider(api_key=api_key)
+    if (raw_name == "gemini" or (api_key and raw_name != "mock")):
+        if api_key:
+            return GeminiMeetingIntelligenceProvider(api_key=api_key)
 
     return MockMeetingIntelligenceProvider(raise_error=mock_raise_error)
 

@@ -44,28 +44,22 @@ class MockTranscriptionProvider(TranscriptionProvider):
         if self.raise_error:
             raise RuntimeError("Mock transcription provider failure simulated.")
 
+        filename = audio_file_path.name
         if self.include_speakers:
             segments = [
                 TranscriptionSegmentData(
                     sequence_number=1,
                     start_time_ms=0,
                     end_time_ms=5000,
-                    text="Welcome everyone to today's meeting.",
+                    text=f"[Demo Fallback - GEMINI_API_KEY not set] Recorded audio content from {filename} segment 1.",
                     speaker_label="Speaker 1",
                 ),
                 TranscriptionSegmentData(
                     sequence_number=2,
                     start_time_ms=5200,
                     end_time_ms=12000,
-                    text="Thanks for having me. Let's review our quarterly roadmap.",
+                    text=f"[Demo Fallback - GEMINI_API_KEY not set] Recorded audio content from {filename} segment 2.",
                     speaker_label="Speaker 2",
-                ),
-                TranscriptionSegmentData(
-                    sequence_number=3,
-                    start_time_ms=12500,
-                    end_time_ms=20000,
-                    text="Great. We need to finalize the engineering action items before Friday.",
-                    speaker_label="Speaker 1",
                 ),
             ]
         else:
@@ -74,14 +68,7 @@ class MockTranscriptionProvider(TranscriptionProvider):
                     sequence_number=1,
                     start_time_ms=0,
                     end_time_ms=6000,
-                    text="This is a recording without speaker identification.",
-                    speaker_label=None,
-                ),
-                TranscriptionSegmentData(
-                    sequence_number=2,
-                    start_time_ms=6500,
-                    end_time_ms=15000,
-                    text="All spoken content is captured sequentially in time.",
+                    text=f"[Demo Fallback - GEMINI_API_KEY not set] Sequential spoken content from {filename}.",
                     speaker_label=None,
                 ),
             ]
@@ -110,10 +97,19 @@ class GeminiTranscriptionProvider(TranscriptionProvider):
         if audio_file_path.stat().st_size == 0:
             raise ValueError(f"Audio file is empty (0 bytes): {audio_file_path}")
 
+        import time
         from google import genai
         client = genai.Client(api_key=self.api_key)
 
-        uploaded_audio = client.files.upload(file=audio_file_path)
+        uploaded_audio = client.files.upload(file=str(audio_file_path))
+
+        # Poll file processing status until ACTIVE or FAILED
+        while hasattr(uploaded_audio, "state") and uploaded_audio.state and getattr(uploaded_audio.state, "name", "") == "PROCESSING":
+            time.sleep(1.5)
+            uploaded_audio = client.files.get(name=uploaded_audio.name)
+
+        if hasattr(uploaded_audio, "state") and uploaded_audio.state and getattr(uploaded_audio.state, "name", "") == "FAILED":
+            raise RuntimeError(f"Audio file processing failed on Gemini API: {getattr(uploaded_audio, 'error', 'Unknown error')}")
 
         prompt = (
             "You are an expert speech-to-text audio transcription engine. "
@@ -163,10 +159,10 @@ def get_transcription_provider(
     mock_include_speakers: bool = True,
 ) -> TranscriptionProvider:
     """Factory returning configured transcription provider."""
-    name = (provider_name or settings.transcription_provider or os.getenv("TRANSCRIPTION_PROVIDER", "mock")).lower()
+    raw_name = (provider_name or settings.transcription_provider or os.getenv("TRANSCRIPTION_PROVIDER", "")).lower()
     api_key = settings.gemini_api_key or os.getenv("GEMINI_API_KEY")
 
-    if name == "gemini":
+    if raw_name == "gemini" or (api_key and raw_name != "mock"):
         if not api_key:
             raise ValueError("TRANSCRIPTION_PROVIDER is set to 'gemini' but GEMINI_API_KEY is missing or unconfigured.")
         return GeminiTranscriptionProvider(api_key=api_key)

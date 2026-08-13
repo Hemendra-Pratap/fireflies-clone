@@ -15,11 +15,25 @@ logging.getLogger().addFilter(log_filter)
 logger = logging.getLogger(__name__)
 
 
+def _run_startup_migrations():
+    """Execute Alembic migrations automatically on app startup."""
+    try:
+        from alembic.config import Config
+        from alembic import command
+        alembic_cfg = Config(str(settings.backend_dir / "alembic.ini"))
+        alembic_cfg.set_main_option("sqlalchemy.url", settings.database_url)
+        command.upgrade(alembic_cfg, "head")
+        logger.info("Alembic database migrations applied successfully on startup.")
+    except Exception as exc:
+        logger.error(f"Failed to run Alembic database migrations on startup: {exc}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """App lifespan context managing startup validation and shutdown hooks."""
     logger.info(f"Starting {settings.app_name} v{settings.app_version} (Environment: {settings.environment})")
     settings.validate_production_config()
+    _run_startup_migrations()
     yield
     logger.info(f"Shutting down {settings.app_name}")
 

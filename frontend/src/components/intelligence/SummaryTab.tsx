@@ -29,7 +29,7 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({ summary }) => {
 
       {/* Key Discussion Points */}
       <div className="card">
-        <h4 style={{ fontSize: '1rem', fontWeight: 700, color: '#fff', marginBottom: '1rem' }}>
+        <h4 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-heading)', marginBottom: '1rem' }}>
           Key Discussion Points
         </h4>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>

@@ -270,7 +270,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
 
         {/* Timeline Slider & Time Display */}
         <div style={{ flex: 1, minWidth: '220px', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <span style={{ fontSize: '0.75rem', fontFamily: 'var(--font-mono)', color: '#fff', fontWeight: 600, minWidth: '55px' }}>
+          <span style={{ fontSize: '0.75rem', fontFamily: 'var(--font-mono)', color: 'var(--text-heading)', fontWeight: 600, minWidth: '55px' }}>
             {formatAudioTime(currentTimeSec, isLongDuration)}
           </span>
 

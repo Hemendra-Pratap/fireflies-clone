@@ -86,7 +86,7 @@ export const TranscriptTab: React.FC<TranscriptTabProps> = ({
   if (!segments || segments.length === 0) {
     return (
       <div className="card" style={{ padding: '2.5rem 2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-        <div style={{ fontSize: '1rem', fontWeight: 600, color: '#fff', marginBottom: '0.5rem' }}>
+        <div style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-heading)', marginBottom: '0.5rem' }}>
           No Transcript Available
         </div>
         <div style={{ fontSize: '0.875rem' }}>

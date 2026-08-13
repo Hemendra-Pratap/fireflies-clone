@@ -70,7 +70,7 @@ export const ActionItemsTab: React.FC<ActionItemsTabProps> = ({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-        <h4 style={{ fontSize: '1rem', fontWeight: 700, color: '#fff' }}>
+        <h4 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-heading)' }}>
           Action Items Checklist ({completedCount} / {items.length} completed)
         </h4>
       </div>
@@ -140,7 +140,7 @@ export const ActionItemsTab: React.FC<ActionItemsTabProps> = ({
                 style={{
                   fontSize: '0.9375rem',
                   fontWeight: 500,
-                  color: item.is_completed ? 'var(--text-muted)' : '#fff',
+                  color: item.is_completed ? 'var(--text-muted)' : 'var(--text-heading)',
                   textDecoration: item.is_completed ? 'line-through' : 'none',
                   lineHeight: 1.4,
                 }}

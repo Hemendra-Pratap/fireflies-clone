@@ -148,7 +148,7 @@ export const ProcessingStateView: React.FC<ProcessingStateViewProps> = ({
 
   return (
     <div className="card" style={{ padding: '2rem', textAlign: 'center', margin: '1.5rem 0' }}>
-      <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#fff', marginBottom: '0.5rem' }}>
+      <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-heading)', marginBottom: '0.5rem' }}>
         Processing Meeting Intelligence
       </h3>
       <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '2rem' }}>
@@ -210,7 +210,7 @@ export const ProcessingStateView: React.FC<ProcessingStateViewProps> = ({
                   fontSize: '0.75rem',
                   fontWeight: 600,
                   marginTop: '0.5rem',
-                  color: state === 'pending' ? 'var(--text-dim)' : '#fff',
+                  color: state === 'pending' ? 'var(--text-dim)' : 'var(--text-heading)',
                 }}
               >
                 {step.label}
