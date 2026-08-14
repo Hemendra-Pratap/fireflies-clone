@@ -26,6 +26,7 @@ def _run_startup_migrations():
         logger.info("Alembic database migrations applied successfully on startup.")
     except Exception as exc:
         logger.error(f"Failed to run Alembic database migrations on startup: {exc}")
+        raise
 
 
 @asynccontextmanager
