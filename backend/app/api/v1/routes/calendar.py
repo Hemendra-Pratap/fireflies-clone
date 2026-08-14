@@ -39,7 +39,13 @@ def connect_calendar(
         )
 
     state = calendar_service.generate_oauth_state(current_user.id, workspace_id)
-    auth_url = google_calendar_provider.get_auth_url(state)
+    try:
+        auth_url = google_calendar_provider.get_auth_url(state)
+    except ValueError as val_err:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(val_err),
+        )
     return CalendarConnectResponse(auth_url=auth_url)
 
 

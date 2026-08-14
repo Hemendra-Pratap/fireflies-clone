@@ -22,8 +22,11 @@ class GoogleCalendarProvider(CalendarProvider):
 
     def get_auth_url(self, state: str) -> str:
         """Generate Google OAuth 2.0 authorization URL with CSRF state token."""
+        if settings.is_production and not settings.google_client_id:
+            raise ValueError("Google OAuth client ID is not configured for production. Please set GOOGLE_CLIENT_ID in environment variables.")
+
         client_id = settings.google_client_id or "mock-google-client-id"
-        redirect_uri = settings.google_redirect_uri or "http://localhost:5173/calendar/callback"
+        redirect_uri = settings.google_redirect_uri or "https://fireflies-frontend-lzld.onrender.com/calendar/callback"
 
         params = {
             "client_id": client_id,
@@ -40,7 +43,7 @@ class GoogleCalendarProvider(CalendarProvider):
         """Exchange authorization code for access & refresh tokens and user email."""
         client_id = settings.google_client_id
         client_secret = settings.google_client_secret
-        redirect_uri = settings.google_redirect_uri or "http://localhost:5173/calendar/callback"
+        redirect_uri = settings.google_redirect_uri or "https://fireflies-frontend-lzld.onrender.com/calendar/callback"
 
         # If credentials are not configured or code is mock code, return mock tokens for testing/development
         if not client_id or not client_secret or code.startswith("mock_code_"):
