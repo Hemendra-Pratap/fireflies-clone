@@ -33,7 +33,7 @@ services:
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.0-flash}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
-      CORS_ORIGINS: http://localhost,http://localhost:80,http://127.0.0.1
+      CORS_ORIGINS: https://fireflies-frontend-lzld.onrender.com,http://localhost,http://localhost:80,http://127.0.0.1
     ports:
       - "8000:8000"
     volumes:

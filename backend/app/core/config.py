@@ -16,12 +16,19 @@ def _get_normalized_db_url() -> str:
     return raw_url
 
 
+def _get_normalized_api_prefix() -> str:
+    raw_prefix = os.getenv("API_PREFIX", "/api").strip().rstrip("/")
+    if raw_prefix.endswith("/v1"):
+        raw_prefix = raw_prefix[:-3].rstrip("/")
+    return raw_prefix or "/api"
+
+
 @dataclass(frozen=True, slots=True)
 class Settings:
     environment: str = os.getenv("ENVIRONMENT", "development").lower()
     app_name: str = os.getenv("APP_NAME", "FireFlies Clone API")
     app_version: str = os.getenv("APP_VERSION", "0.1.0")
-    api_prefix: str = os.getenv("API_PREFIX", "/api")
+    api_prefix: str = _get_normalized_api_prefix()
     database_url: str = _get_normalized_db_url()
     backend_dir: Path = BACKEND_DIR
     audio_storage_path: Path = Path(
@@ -45,7 +52,7 @@ class Settings:
     def cors_origins(self) -> list[str]:
         origins_str = os.getenv(
             "CORS_ORIGINS",
-            "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://localhost:80,http://localhost",
+            "https://fireflies-frontend-lzld.onrender.com,http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://localhost:80,http://localhost",
         )
         return [origin.strip() for origin in origins_str.split(",") if origin.strip()]
 

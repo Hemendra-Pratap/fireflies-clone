@@ -59,14 +59,15 @@ These variables must **NEVER** be exposed to browser JavaScript:
 | `GEMINI_API_KEY` | Google Gemini API Key | `AIzaSy...` |
 | `GOOGLE_CLIENT_ID` | OAuth Client ID for Google Calendar | `xyz.apps.googleusercontent.com` |
 | `GOOGLE_CLIENT_SECRET` | OAuth Client Secret for Google Calendar | `GOCSPX-...` |
-| `CORS_ORIGINS` | Comma-separated list of allowed origins | `http://localhost,http://yourdomain.com` |
+| `API_PREFIX` | Base API mount prefix | `/api` |
+| `CORS_ORIGINS` | Comma-separated list of allowed origins | `https://fireflies-frontend-lzld.onrender.com,http://localhost` |
 
 ### Frontend Variables (`frontend/.env`)
 Only variables prefixed with `VITE_` are bundled into browser JS:
 
 | Variable | Description | Value |
 | :--- | :--- | :--- |
-| `VITE_API_BASE_URL` | Base API route prefix | `/api/v1` |
+| `VITE_API_BASE_URL` | Base API route prefix | `https://fireflies-clone-1-cnf4.onrender.com/api/v1` |
 
 ---
 
