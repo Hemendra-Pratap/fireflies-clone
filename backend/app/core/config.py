@@ -35,14 +35,14 @@ class Settings:
         os.getenv("AUDIO_STORAGE_PATH", str(BACKEND_DIR / "storage" / "audio"))
     )
     gemini_api_key: str | None = os.getenv("GEMINI_API_KEY")
-    gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+    gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-3-flash-preview")
     transcription_provider: str = os.getenv("TRANSCRIPTION_PROVIDER", "mock")
     jwt_secret_key: str = os.getenv("JWT_SECRET_KEY", "dev_secret_key_change_in_production_123456789")
     jwt_algorithm: str = os.getenv("JWT_ALGORITHM", "HS256")
     jwt_access_token_expire_minutes: int = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
     google_client_id: str | None = os.getenv("GOOGLE_CLIENT_ID")
     google_client_secret: str | None = os.getenv("GOOGLE_CLIENT_SECRET")
-    google_redirect_uri: str = os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:5173/calendar/callback")
+    google_redirect_uri: str = os.getenv("GOOGLE_REDIRECT_URI", "https://fireflies-frontend-lzld.onrender.com/calendar/callback")
 
     @property
     def is_production(self) -> bool:

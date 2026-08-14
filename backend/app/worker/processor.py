@@ -36,6 +36,7 @@ def is_transient_error(exc: Exception) -> bool:
     exc_str = str(exc).lower()
     if "lock" in exc_str or "deadlock" in exc_str or "timeout" in exc_str or "connection" in exc_str:
         return True
+    return False
 def _run_async_coro(coro):
     """Safely execute an async coroutine synchronously whether inside or outside an active event loop."""
     try:

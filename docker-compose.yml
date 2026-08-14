@@ -30,7 +30,7 @@ services:
       AUDIO_STORAGE_PATH: /app/storage/audio
       TRANSCRIPTION_PROVIDER: ${TRANSCRIPTION_PROVIDER:-gemini}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.0-flash}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3-flash-preview}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       CORS_ORIGINS: https://fireflies-frontend-lzld.onrender.com,http://localhost,http://localhost:80,http://127.0.0.1
@@ -61,7 +61,7 @@ services:
       AUDIO_STORAGE_PATH: /app/storage/audio
       TRANSCRIPTION_PROVIDER: ${TRANSCRIPTION_PROVIDER:-gemini}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.0-flash}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3-flash-preview}
     volumes:
       - audio_data:/app/storage/audio
     depends_on:

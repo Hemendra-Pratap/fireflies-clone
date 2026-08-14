@@ -57,8 +57,10 @@ These variables must **NEVER** be exposed to browser JavaScript:
 | `AUDIO_STORAGE_PATH` | Absolute path to stored audio files | `/app/storage/audio` |
 | `TRANSCRIPTION_PROVIDER` | STT provider (`gemini` or `mock`) | `gemini` |
 | `GEMINI_API_KEY` | Google Gemini API Key | `AIzaSy...` |
+| `GEMINI_MODEL` | Gemini AI model identifier | `gemini-3-flash-preview` |
 | `GOOGLE_CLIENT_ID` | OAuth Client ID for Google Calendar | `xyz.apps.googleusercontent.com` |
 | `GOOGLE_CLIENT_SECRET` | OAuth Client Secret for Google Calendar | `GOCSPX-...` |
+| `GOOGLE_REDIRECT_URI` | OAuth 2.0 Redirect URI for Google Calendar | `https://fireflies-frontend-lzld.onrender.com/calendar/callback` |
 | `API_PREFIX` | Base API mount prefix | `/api` |
 | `CORS_ORIGINS` | Comma-separated list of allowed origins | `https://fireflies-frontend-lzld.onrender.com,http://localhost` |
 

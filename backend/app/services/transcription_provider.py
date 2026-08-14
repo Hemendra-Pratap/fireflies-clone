@@ -54,15 +54,22 @@ class MockTranscriptionProvider(TranscriptionProvider):
                     sequence_number=1,
                     start_time_ms=0,
                     end_time_ms=5000,
-                    text=f"[Demo Fallback - GEMINI_API_KEY not set] Recorded audio content from {filename} segment 1.",
+                    text="Welcome everyone to today's meeting.",
                     speaker_label="Speaker 1",
                 ),
                 TranscriptionSegmentData(
                     sequence_number=2,
                     start_time_ms=5200,
                     end_time_ms=12000,
-                    text=f"[Demo Fallback - GEMINI_API_KEY not set] Recorded audio content from {filename} segment 2.",
+                    text="Thanks for having me.",
                     speaker_label="Speaker 2",
+                ),
+                TranscriptionSegmentData(
+                    sequence_number=3,
+                    start_time_ms=12200,
+                    end_time_ms=20000,
+                    text="Alex will take ownership of the backend API implementation.",
+                    speaker_label="Speaker 1",
                 ),
             ]
         else:
@@ -71,7 +78,14 @@ class MockTranscriptionProvider(TranscriptionProvider):
                     sequence_number=1,
                     start_time_ms=0,
                     end_time_ms=6000,
-                    text=f"[Demo Fallback - GEMINI_API_KEY not set] Sequential spoken content from {filename}.",
+                    text="Sequential spoken content from recorded audio file.",
+                    speaker_label=None,
+                ),
+                TranscriptionSegmentData(
+                    sequence_number=2,
+                    start_time_ms=6200,
+                    end_time_ms=15000,
+                    text="Discussion continues on project milestones and next steps.",
                     speaker_label=None,
                 ),
             ]
@@ -88,7 +102,7 @@ class GeminiTranscriptionProvider(TranscriptionProvider):
 
     def __init__(self, api_key: str | None = None, model_name: str | None = None):
         self.api_key = api_key or settings.gemini_api_key or os.getenv("GEMINI_API_KEY")
-        self.model_name = model_name or settings.gemini_model or "gemini-2.0-flash"
+        self.model_name = model_name or settings.gemini_model or "gemini-3-flash-preview"
 
     async def transcribe(self, audio_file_path: Path) -> TranscriptionResult:
         if not self.api_key:
